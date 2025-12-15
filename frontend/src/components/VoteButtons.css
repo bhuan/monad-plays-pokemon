@@ -1,0 +1,173 @@
+.vote-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #1a1a2e;
+  border-radius: 12px;
+}
+
+.vote-buttons h3 {
+  margin: 0;
+  color: #fff;
+}
+
+/* D-Pad styles */
+.dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.dpad-middle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.dpad-center {
+  width: 40px;
+  height: 40px;
+  background: #333;
+  border-radius: 4px;
+}
+
+.dpad-btn {
+  width: 50px;
+  height: 40px;
+  background: #444;
+  border: none;
+  color: white;
+  font-weight: bold;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dpad-btn:hover:not(:disabled) {
+  background: #666;
+}
+
+.dpad-btn:active:not(:disabled) {
+  background: #888;
+  transform: scale(0.95);
+}
+
+.dpad-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dpad-btn.up {
+  border-radius: 8px 8px 0 0;
+}
+
+.dpad-btn.down {
+  border-radius: 0 0 8px 8px;
+}
+
+.dpad-btn.left {
+  border-radius: 8px 0 0 8px;
+  width: 40px;
+  height: 50px;
+}
+
+.dpad-btn.right {
+  border-radius: 0 8px 8px 0;
+  width: 40px;
+  height: 50px;
+}
+
+/* Action buttons (A, B) */
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.action-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.action-btn.a {
+  background: #e74c3c;
+  color: white;
+}
+
+.action-btn.b {
+  background: #3498db;
+  color: white;
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Menu buttons (Start, Select) */
+.menu-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.menu-btn {
+  padding: 0.4rem 0.8rem;
+  background: #555;
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.menu-btn:hover:not(:disabled) {
+  background: #777;
+}
+
+.menu-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.menu-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.last-vote {
+  color: #27ae60;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.error {
+  color: #e74c3c;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.warning {
+  color: #f39c12;
+  margin: 0;
+  font-size: 0.85rem;
+}

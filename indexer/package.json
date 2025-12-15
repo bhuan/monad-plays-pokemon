@@ -1,0 +1,29 @@
+{
+  "name": "monad-plays-indexer",
+  "version": "1.0.0",
+  "description": "Vote aggregation indexer for MonadPlaysPokemon",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "monad",
+    "blockchain",
+    "gaming"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "ethers": "^6.16.0",
+    "serverboy": "^0.0.7",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

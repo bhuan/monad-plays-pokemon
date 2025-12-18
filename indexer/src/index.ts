@@ -2,6 +2,9 @@ import { ethers } from "ethers";
 import { Server } from "socket.io";
 import { createServer } from "http";
 import * as path from "path";
+import * as fs from "fs";
+import * as https from "https";
+import * as http from "http";
 import { config, contractAbi, Actions } from "./config";
 import { VoteAggregator } from "./voteAggregator";
 import { GameBoyEmulator } from "./emulator";
@@ -9,6 +12,66 @@ import { GameBoyEmulator } from "./emulator";
 // Paths
 const ROM_PATH = path.join(__dirname, "..", "roms", "pokemon-red.gb");
 const SAVE_PATH = path.join(__dirname, "..", "saves", "pokemon-red.sav");
+
+// Download ROM from URL if not present locally
+async function ensureRomExists(): Promise<void> {
+  if (fs.existsSync(ROM_PATH)) {
+    console.log("ROM found locally:", ROM_PATH);
+    return;
+  }
+
+  const romUrl = process.env.ROM_URL;
+  if (!romUrl) {
+    throw new Error(
+      `ROM file not found at ${ROM_PATH} and ROM_URL environment variable not set`
+    );
+  }
+
+  console.log("ROM not found locally, downloading from ROM_URL...");
+
+  // Ensure roms directory exists
+  const romsDir = path.dirname(ROM_PATH);
+  if (!fs.existsSync(romsDir)) {
+    fs.mkdirSync(romsDir, { recursive: true });
+  }
+
+  // Download the ROM
+  await new Promise<void>((resolve, reject) => {
+    const protocol = romUrl.startsWith("https") ? https : http;
+    const file = fs.createWriteStream(ROM_PATH);
+
+    protocol.get(romUrl, (response) => {
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        // Handle redirect
+        const redirectUrl = response.headers.location;
+        if (redirectUrl) {
+          protocol.get(redirectUrl, (redirectResponse) => {
+            redirectResponse.pipe(file);
+            file.on("finish", () => {
+              file.close();
+              console.log("ROM downloaded successfully");
+              resolve();
+            });
+          }).on("error", reject);
+        } else {
+          reject(new Error("Redirect without location header"));
+        }
+      } else if (response.statusCode === 200) {
+        response.pipe(file);
+        file.on("finish", () => {
+          file.close();
+          console.log("ROM downloaded successfully");
+          resolve();
+        });
+      } else {
+        reject(new Error(`Failed to download ROM: HTTP ${response.statusCode}`));
+      }
+    }).on("error", (err) => {
+      fs.unlink(ROM_PATH, () => {}); // Clean up partial file
+      reject(err);
+    });
+  });
+}
 
 // Auto-save interval (every 60 seconds)
 const AUTO_SAVE_INTERVAL = 60000;
@@ -38,6 +101,14 @@ async function main() {
 
   if (!config.contractAddress) {
     console.error("ERROR: CONTRACT_ADDRESS not set in environment");
+    process.exit(1);
+  }
+
+  // Ensure ROM exists (download if needed)
+  try {
+    await ensureRomExists();
+  } catch (err) {
+    console.error("Failed to get ROM:", err);
     process.exit(1);
   }
 

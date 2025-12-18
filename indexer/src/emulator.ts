@@ -32,7 +32,9 @@ export class GameBoyEmulator {
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
   private compressionInFlight: number = 0;
-  private maxConcurrentCompressions: number = 6;
+  private maxConcurrentCompressions: number = 8;
+  // Frame queuing: keep latest frame when compression is backed up
+  private queuedFrame: Buffer | null = null;
 
   constructor(romPath: string, savePath: string) {
     this.romPath = romPath;
@@ -96,35 +98,58 @@ export class GameBoyEmulator {
       // Advance frame
       this.gameboy.doFrame();
 
-      // Get frame data, compress, and emit
-      if (this.onFrame && this.compressionInFlight < this.maxConcurrentCompressions) {
+      // Get frame data and queue for compression
+      if (this.onFrame) {
         const screen = this.gameboy.getScreen();
         if (screen) {
           const rawBuffer = Buffer.from(screen);
-          this.compressionInFlight++;
 
-          // Compress to JPEG for bandwidth savings
-          sharp(rawBuffer, {
-            raw: {
-              width: SCREEN_WIDTH,
-              height: SCREEN_HEIGHT,
-              channels: 4,
-            },
-          })
-            .jpeg({ quality: 45, chromaSubsampling: '4:2:0' })
-            .toBuffer()
-            .then((compressed) => {
-              this.compressionInFlight--;
-              if (this.onFrame) this.onFrame(compressed);
-            })
-            .catch(() => {
-              this.compressionInFlight--;
-            });
+          if (this.compressionInFlight < this.maxConcurrentCompressions) {
+            // Compression slot available, process immediately
+            this.compressAndEmit(rawBuffer);
+          } else {
+            // All slots busy, queue this frame (replacing any older queued frame)
+            this.queuedFrame = rawBuffer;
+          }
         }
       }
     }, frameTime);
 
     console.log(`Emulator running at ${fps} FPS`);
+  }
+
+  private compressAndEmit(rawBuffer: Buffer): void {
+    this.compressionInFlight++;
+
+    sharp(rawBuffer, {
+      raw: {
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT,
+        channels: 4,
+      },
+    })
+      .jpeg({ quality: 45, chromaSubsampling: '4:2:0' })
+      .toBuffer()
+      .then((compressed) => {
+        this.compressionInFlight--;
+        if (this.onFrame) this.onFrame(compressed);
+
+        // Process queued frame if available and slot is free
+        if (this.queuedFrame && this.compressionInFlight < this.maxConcurrentCompressions) {
+          const queued = this.queuedFrame;
+          this.queuedFrame = null;
+          this.compressAndEmit(queued);
+        }
+      })
+      .catch(() => {
+        this.compressionInFlight--;
+        // Still try to process queued frame on error
+        if (this.queuedFrame && this.compressionInFlight < this.maxConcurrentCompressions) {
+          const queued = this.queuedFrame;
+          this.queuedFrame = null;
+          this.compressAndEmit(queued);
+        }
+      });
   }
 
   stop(): void {

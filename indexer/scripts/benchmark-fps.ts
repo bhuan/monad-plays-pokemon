@@ -3,7 +3,7 @@
 /**
  * FPS Benchmark Script
  *
- * Connects to the Socket.io server and measures frame delivery rate.
+ * Connects to the WebSocket frame stream and measures frame delivery rate.
  * Usage: npx ts-node scripts/benchmark-fps.ts [url] [duration]
  *
  * Examples:
@@ -12,7 +12,7 @@
  *   npx ts-node scripts/benchmark-fps.ts https://example.com 30    # custom URL, 30s
  */
 
-import { io, Socket } from "socket.io-client";
+import WebSocket from "ws";
 
 const DEFAULT_URL = "http://localhost:3001";
 const DEFAULT_DURATION = 10; // seconds
@@ -37,10 +37,19 @@ function calculatePercentile(arr: number[], p: number): number {
   return sorted[Math.max(0, idx)];
 }
 
-async function benchmark(url: string, durationSec: number): Promise<void> {
+function getStreamUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/stream";
+  return url.toString();
+}
+
+async function benchmark(baseUrl: string, durationSec: number): Promise<void> {
+  const streamUrl = getStreamUrl(baseUrl);
+
   console.log(`\n📊 FPS Benchmark`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`Target:   ${url}`);
+  console.log(`Target:   ${streamUrl}`);
   console.log(`Duration: ${durationSec} seconds`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
@@ -56,49 +65,56 @@ async function benchmark(url: string, durationSec: number): Promise<void> {
   let connected = false;
   let startTime = 0;
 
-  const socket: Socket = io(url, {
-    transports: ["websocket"],
-    reconnection: false,
-  });
+  const ws = new WebSocket(streamUrl);
 
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (!connected) {
         console.error("❌ Connection timeout");
-        socket.close();
+        ws.close();
         reject(new Error("Connection timeout"));
       }
     }, 10000);
 
-    socket.on("connect", () => {
+    ws.on("open", () => {
       connected = true;
       clearTimeout(timeout);
-      console.log(`✅ Connected to server`);
+      console.log(`✅ Connected to frame stream`);
       console.log(`⏱️  Measuring for ${durationSec} seconds...\n`);
       startTime = Date.now();
       lastFrameTime = startTime;
 
       // End benchmark after duration
       setTimeout(() => {
-        socket.close();
+        ws.close();
         printResults(stats, durationSec);
         resolve();
       }, durationSec * 1000);
     });
 
-    socket.on("connect_error", (err: Error) => {
+    ws.on("error", (err: Error) => {
       clearTimeout(timeout);
       console.error(`❌ Connection failed: ${err.message}`);
       reject(err);
     });
 
-    socket.on("screenInfo", (info: { width: number; height: number }) => {
-      console.log(`📺 Screen: ${info.width}x${info.height}`);
-    });
+    ws.on("message", (data: WebSocket.Data) => {
+      // Handle JSON messages (screenInfo)
+      if (typeof data === "string") {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === "screenInfo") {
+            console.log(`📺 Screen: ${msg.width}x${msg.height}`);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+        return;
+      }
 
-    socket.on("frame", (frameData: ArrayBuffer) => {
+      // Handle binary frame data
       const now = Date.now();
-      const frameSize = frameData.byteLength;
+      const frameSize = Buffer.isBuffer(data) ? data.length : (data as ArrayBuffer).byteLength;
 
       stats.frameCount++;
       stats.totalBytes += frameSize;
@@ -111,15 +127,15 @@ async function benchmark(url: string, durationSec: number): Promise<void> {
       }
       lastFrameTime = now;
 
-      // Progress indicator every 30 frames
-      if (stats.frameCount % 30 === 0) {
+      // Progress indicator every 60 frames
+      if (stats.frameCount % 60 === 0) {
         const elapsed = (now - startTime) / 1000;
         const currentFps = (stats.frameCount / elapsed).toFixed(1);
         process.stdout.write(`\r  Frames: ${stats.frameCount} | FPS: ${currentFps} | Data: ${formatBytes(stats.totalBytes)}   `);
       }
     });
 
-    socket.on("disconnect", () => {
+    ws.on("close", () => {
       console.log("\n\n🔌 Disconnected");
     });
   });

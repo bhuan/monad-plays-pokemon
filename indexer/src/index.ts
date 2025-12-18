@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as https from "https";
 import * as http from "http";
 import express from "express";
+import { WebSocketServer, WebSocket } from "ws";
 import { config, contractAbi, Actions } from "./config";
 import { VoteAggregator } from "./voteAggregator";
 import { GameBoyEmulator } from "./emulator";
@@ -80,8 +81,8 @@ async function ensureRomExists(): Promise<void> {
 // Auto-save interval (every 60 seconds)
 const AUTO_SAVE_INTERVAL = 60000;
 
-// Frame streaming rate (FPS) - reduced for network streaming
-const STREAM_FPS = 30;
+// Frame streaming rate (FPS) - targeting native GameBoy rate (~60 FPS)
+const STREAM_FPS = 60;
 
 // Track seen events to deduplicate between WebSocket and polling
 const seenEvents = new Set<string>();
@@ -143,12 +144,34 @@ async function main() {
   }
 
   const httpServer = createServer(app);
+
+  // Socket.io for non-frame events (windowResult, screenInfo)
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
       methods: ["GET", "POST"],
     },
-    maxHttpBufferSize: 1e7, // 10MB for frame data
+  });
+
+  // Raw WebSocket server for high-performance frame streaming
+  const wss = new WebSocketServer({ server: httpServer, path: "/stream" });
+  const frameClients = new Set<WebSocket>();
+
+  wss.on("connection", (ws) => {
+    console.log(`[WS] Frame client connected (total: ${frameClients.size + 1})`);
+    frameClients.add(ws);
+
+    // Send screen info immediately
+    ws.send(JSON.stringify({ type: "screenInfo", ...emulator.getScreenDimensions() }));
+
+    ws.on("close", () => {
+      frameClients.delete(ws);
+      console.log(`[WS] Frame client disconnected (total: ${frameClients.size})`);
+    });
+
+    ws.on("error", () => {
+      frameClients.delete(ws);
+    });
   });
 
   // Set up frame streaming with FPS tracking
@@ -156,32 +179,40 @@ async function main() {
   let lastFpsLogTime = Date.now();
 
   emulator.setFrameCallback((frameData: Buffer) => {
-    io.emit("frame", frameData);
     serverFrameCount++;
+
+    // Broadcast frame to all connected WebSocket clients
+    for (const client of frameClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(frameData);
+      }
+    }
 
     // Log server-side FPS every 5 seconds
     const now = Date.now();
     if (now - lastFpsLogTime >= 5000) {
       const elapsed = (now - lastFpsLogTime) / 1000;
       const fps = (serverFrameCount / elapsed).toFixed(1);
-      console.log(`[FPS] Server emitting ${fps} frames/sec (${serverFrameCount} frames in ${elapsed.toFixed(1)}s)`);
+      console.log(`[FPS] Server emitting ${fps} frames/sec to ${frameClients.size} clients`);
       serverFrameCount = 0;
       lastFpsLogTime = now;
     }
   });
 
-  // Track connected clients
+  // Socket.io for other events (windowResult, screenInfo)
   io.on("connection", (socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    console.log(`[Socket.io] Client connected: ${socket.id}`);
     socket.emit("screenInfo", emulator.getScreenDimensions());
 
     socket.on("disconnect", () => {
-      console.log(`Client disconnected: ${socket.id}`);
+      console.log(`[Socket.io] Client disconnected: ${socket.id}`);
     });
   });
 
   httpServer.listen(config.port, () => {
-    console.log(`Socket.io server listening on port ${config.port}`);
+    console.log(`Server listening on port ${config.port}`);
+    console.log(`  - Frame stream: ws://localhost:${config.port}/stream`);
+    console.log(`  - Socket.io: http://localhost:${config.port}/socket.io`);
   });
 
   // Start emulator

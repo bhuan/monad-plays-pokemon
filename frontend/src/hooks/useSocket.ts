@@ -18,6 +18,20 @@ export interface ScreenInfo {
 // Use same origin if VITE_INDEXER_URL is not set (for single-server deployment)
 const INDEXER_URL = import.meta.env.VITE_INDEXER_URL || undefined;
 
+// Construct WebSocket URL for frame streaming
+function getStreamUrl(): string {
+  if (INDEXER_URL) {
+    // Convert http(s) to ws(s)
+    const url = new URL(INDEXER_URL);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.pathname = "/stream";
+    return url.toString();
+  }
+  // Same origin
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/stream`;
+}
+
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [lastResult, setLastResult] = useState<WindowResult | null>(null);
@@ -25,41 +39,79 @@ export function useSocket() {
   const [screenInfo, setScreenInfo] = useState<ScreenInfo>({ width: 160, height: 144 });
   const frameCallbackRef = useRef<((frame: ArrayBuffer) => void) | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // If INDEXER_URL is undefined, socket.io connects to same origin
+    // Socket.io for windowResult events
     const newSocket = INDEXER_URL ? io(INDEXER_URL) : io();
     socketRef.current = newSocket;
 
     newSocket.on("connect", () => {
-      console.log("Connected to indexer");
-      setIsConnected(true);
+      console.log("[Socket.io] Connected");
     });
 
     newSocket.on("disconnect", () => {
-      console.log("Disconnected from indexer");
-      setIsConnected(false);
+      console.log("[Socket.io] Disconnected");
     });
 
     newSocket.on("screenInfo", (info: ScreenInfo) => {
-      console.log("Screen info:", info);
+      console.log("[Socket.io] Screen info:", info);
       setScreenInfo(info);
     });
 
-    newSocket.on("frame", (frameData: ArrayBuffer) => {
-      if (frameCallbackRef.current) {
-        frameCallbackRef.current(frameData);
-      }
-    });
-
     newSocket.on("windowResult", (result: WindowResult) => {
-      console.log("Window result:", result);
+      console.log("[Socket.io] Window result:", result);
       setLastResult(result);
       setResultHistory((prev) => [...prev.slice(-19), result]);
     });
 
+    // Raw WebSocket for high-performance frame streaming
+    const streamUrl = getStreamUrl();
+    console.log("[WS] Connecting to frame stream:", streamUrl);
+
+    const ws = new WebSocket(streamUrl);
+    wsRef.current = ws;
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      console.log("[WS] Frame stream connected");
+      setIsConnected(true);
+    };
+
+    ws.onclose = () => {
+      console.log("[WS] Frame stream disconnected");
+      setIsConnected(false);
+    };
+
+    ws.onerror = (err) => {
+      console.error("[WS] Frame stream error:", err);
+    };
+
+    ws.onmessage = (event) => {
+      const data = event.data;
+
+      // Handle JSON messages (screenInfo)
+      if (typeof data === "string") {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === "screenInfo") {
+            setScreenInfo({ width: msg.width, height: msg.height });
+          }
+        } catch {
+          // Ignore parse errors
+        }
+        return;
+      }
+
+      // Handle binary frame data
+      if (data instanceof ArrayBuffer && frameCallbackRef.current) {
+        frameCallbackRef.current(data);
+      }
+    };
+
     return () => {
       newSocket.close();
+      ws.close();
     };
   }, []);
 

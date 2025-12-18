@@ -19,10 +19,12 @@
     "dotenv": "^17.2.3",
     "ethers": "^6.16.0",
     "serverboy": "^0.0.7",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^25.0.1",
+    "@types/sharp": "^0.32.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

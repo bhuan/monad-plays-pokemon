@@ -76,8 +76,8 @@ async function ensureRomExists(): Promise<void> {
 // Auto-save interval (every 60 seconds)
 const AUTO_SAVE_INTERVAL = 60000;
 
-// Frame streaming rate (FPS) - GameBoy native is ~60 FPS
-const STREAM_FPS = 60;
+// Frame streaming rate (FPS) - reduced for network streaming
+const STREAM_FPS = 30;
 
 // Track seen events to deduplicate between WebSocket and polling
 const seenEvents = new Set<string>();

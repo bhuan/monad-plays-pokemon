@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import sharp from "sharp";
 
 // serverboy is a CommonJS module
 const Gameboy = require("serverboy");
@@ -30,6 +31,7 @@ export class GameBoyEmulator {
   private onFrame: ((frame: Buffer) => void) | null = null;
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
+  private isCompressing: boolean = false; // Prevent frame queue buildup
 
   constructor(romPath: string, savePath: string) {
     this.romPath = romPath;
@@ -93,12 +95,33 @@ export class GameBoyEmulator {
       // Advance frame
       this.gameboy.doFrame();
 
-      // Get frame data and emit
-      if (this.onFrame) {
+      // Get frame data, compress, and emit
+      if (this.onFrame && !this.isCompressing) {
         const screen = this.gameboy.getScreen();
         if (screen) {
-          const frameBuffer = Buffer.from(screen);
-          this.onFrame(frameBuffer);
+          this.isCompressing = true;
+          const rawBuffer = Buffer.from(screen);
+
+          // Compress to PNG (better for pixel art than JPEG)
+          sharp(rawBuffer, {
+            raw: {
+              width: SCREEN_WIDTH,
+              height: SCREEN_HEIGHT,
+              channels: 4, // RGBA
+            },
+          })
+            .png({ compressionLevel: 1 }) // Fast compression
+            .toBuffer()
+            .then((compressedBuffer) => {
+              this.isCompressing = false;
+              if (this.onFrame) {
+                this.onFrame(compressedBuffer);
+              }
+            })
+            .catch((err) => {
+              this.isCompressing = false;
+              console.error("Frame compression error:", err);
+            });
         }
       }
     }, frameTime);

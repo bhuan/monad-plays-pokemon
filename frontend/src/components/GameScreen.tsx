@@ -29,27 +29,24 @@ export function GameScreen({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Create ImageData for raw RGBA frames
-    const imageData = ctx.createImageData(screenInfo.width, screenInfo.height);
+    const handleFrame = async (frameData: ArrayBuffer) => {
+      try {
+        // Decode JPEG frame
+        const blob = new Blob([frameData], { type: "image/jpeg" });
+        const bitmap = await createImageBitmap(blob);
+        ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
 
-    const handleFrame = (frameData: ArrayBuffer) => {
-      const data = new Uint8Array(frameData);
-
-      // Copy raw RGBA frame data to ImageData
-      for (let i = 0; i < data.length && i < imageData.data.length; i++) {
-        imageData.data[i] = data[i];
-      }
-
-      // Render to canvas
-      ctx.putImageData(imageData, 0, 0);
-
-      // Update FPS counter
-      frameCountRef.current++;
-      const now = Date.now();
-      if (now - lastFpsUpdateRef.current >= 1000) {
-        setFps(frameCountRef.current);
-        frameCountRef.current = 0;
-        lastFpsUpdateRef.current = now;
+        // Update FPS counter
+        frameCountRef.current++;
+        const now = Date.now();
+        if (now - lastFpsUpdateRef.current >= 1000) {
+          setFps(frameCountRef.current);
+          frameCountRef.current = 0;
+          lastFpsUpdateRef.current = now;
+        }
+      } catch (err) {
+        // Ignore decode errors
       }
     };
 

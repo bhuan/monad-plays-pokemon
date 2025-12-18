@@ -31,9 +31,8 @@ export class GameBoyEmulator {
   private onFrame: ((frame: Buffer) => void) | null = null;
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
-  private frameCounter: number = 0;
   private compressionInFlight: number = 0;
-  private maxConcurrentCompressions: number = 3;
+  private maxConcurrentCompressions: number = 6;
 
   constructor(romPath: string, savePath: string) {
     this.romPath = romPath;
@@ -98,9 +97,7 @@ export class GameBoyEmulator {
       this.gameboy.doFrame();
 
       // Get frame data, compress, and emit
-      // Only process every 2nd frame to reduce CPU load while keeping emulator at full speed
-      this.frameCounter++;
-      if (this.onFrame && this.frameCounter % 2 === 0 && this.compressionInFlight < this.maxConcurrentCompressions) {
+      if (this.onFrame && this.compressionInFlight < this.maxConcurrentCompressions) {
         const screen = this.gameboy.getScreen();
         if (screen) {
           const rawBuffer = Buffer.from(screen);
@@ -114,7 +111,7 @@ export class GameBoyEmulator {
               channels: 4,
             },
           })
-            .jpeg({ quality: 60 })
+            .jpeg({ quality: 45, chromaSubsampling: '4:2:0' })
             .toBuffer()
             .then((compressed) => {
               this.compressionInFlight--;

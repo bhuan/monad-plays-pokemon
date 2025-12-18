@@ -32,7 +32,6 @@ export class GameBoyEmulator {
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
   private frameCounter: number = 0;
-  private lastFrameHash: string = "";
   private compressionInFlight: number = 0;
   private maxConcurrentCompressions: number = 3;
 
@@ -105,15 +104,6 @@ export class GameBoyEmulator {
         const screen = this.gameboy.getScreen();
         if (screen) {
           const rawBuffer = Buffer.from(screen);
-
-          // Simple change detection: hash first 1000 bytes
-          const sampleHash = rawBuffer.slice(0, 1000).toString('base64').slice(0, 50);
-          if (sampleHash === this.lastFrameHash) {
-            // Frame unchanged, skip compression
-            return;
-          }
-          this.lastFrameHash = sampleHash;
-
           this.compressionInFlight++;
 
           // Compress to JPEG for bandwidth savings
@@ -124,7 +114,7 @@ export class GameBoyEmulator {
               channels: 4,
             },
           })
-            .jpeg({ quality: 60 }) // Lower quality for faster compression
+            .jpeg({ quality: 60 })
             .toBuffer()
             .then((compressed) => {
               this.compressionInFlight--;

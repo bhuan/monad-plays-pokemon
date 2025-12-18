@@ -31,7 +31,10 @@ export class GameBoyEmulator {
   private onFrame: ((frame: Buffer) => void) | null = null;
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
-  private isCompressing: boolean = false;
+  private frameCounter: number = 0;
+  private lastFrameHash: string = "";
+  private compressionInFlight: number = 0;
+  private maxConcurrentCompressions: number = 3;
 
   constructor(romPath: string, savePath: string) {
     this.romPath = romPath;
@@ -96,11 +99,22 @@ export class GameBoyEmulator {
       this.gameboy.doFrame();
 
       // Get frame data, compress, and emit
-      if (this.onFrame && !this.isCompressing) {
+      // Only process every 2nd frame to reduce CPU load while keeping emulator at full speed
+      this.frameCounter++;
+      if (this.onFrame && this.frameCounter % 2 === 0 && this.compressionInFlight < this.maxConcurrentCompressions) {
         const screen = this.gameboy.getScreen();
         if (screen) {
-          this.isCompressing = true;
           const rawBuffer = Buffer.from(screen);
+
+          // Simple change detection: hash first 1000 bytes
+          const sampleHash = rawBuffer.slice(0, 1000).toString('base64').slice(0, 50);
+          if (sampleHash === this.lastFrameHash) {
+            // Frame unchanged, skip compression
+            return;
+          }
+          this.lastFrameHash = sampleHash;
+
+          this.compressionInFlight++;
 
           // Compress to JPEG for bandwidth savings
           sharp(rawBuffer, {
@@ -110,14 +124,14 @@ export class GameBoyEmulator {
               channels: 4,
             },
           })
-            .jpeg({ quality: 70 })
+            .jpeg({ quality: 60 }) // Lower quality for faster compression
             .toBuffer()
             .then((compressed) => {
-              this.isCompressing = false;
+              this.compressionInFlight--;
               if (this.onFrame) this.onFrame(compressed);
             })
             .catch(() => {
-              this.isCompressing = false;
+              this.compressionInFlight--;
             });
         }
       }

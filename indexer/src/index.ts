@@ -133,8 +133,9 @@ async function main() {
     console.log("Serving frontend from:", FRONTEND_DIST);
     app.use(express.static(FRONTEND_DIST));
     // SPA fallback - serve index.html for all non-API routes
-    app.get("*", (req, res, next) => {
+    app.use((req, res, next) => {
       if (req.path.startsWith("/socket.io")) return next();
+      if (req.method !== "GET") return next();
       res.sendFile(path.join(FRONTEND_DIST, "index.html"));
     });
   } else {

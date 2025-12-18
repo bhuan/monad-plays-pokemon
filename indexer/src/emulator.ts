@@ -102,7 +102,7 @@ export class GameBoyEmulator {
           this.isCompressing = true;
           const rawBuffer = Buffer.from(screen);
 
-          // Compress to PNG (better for pixel art than JPEG)
+          // Compress to JPEG (faster than PNG)
           sharp(rawBuffer, {
             raw: {
               width: SCREEN_WIDTH,
@@ -110,7 +110,7 @@ export class GameBoyEmulator {
               channels: 4, // RGBA
             },
           })
-            .png({ compressionLevel: 1 }) // Fast compression
+            .jpeg({ quality: 80, mozjpeg: false }) // Fast JPEG encoding
             .toBuffer()
             .then((compressedBuffer) => {
               this.isCompressing = false;

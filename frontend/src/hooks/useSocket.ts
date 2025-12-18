@@ -15,7 +15,8 @@ export interface ScreenInfo {
   height: number;
 }
 
-const INDEXER_URL = import.meta.env.VITE_INDEXER_URL || "http://localhost:3001";
+// Use same origin if VITE_INDEXER_URL is not set (for single-server deployment)
+const INDEXER_URL = import.meta.env.VITE_INDEXER_URL || undefined;
 
 export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
@@ -26,7 +27,8 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    const newSocket = io(INDEXER_URL);
+    // If INDEXER_URL is undefined, socket.io connects to same origin
+    const newSocket = INDEXER_URL ? io(INDEXER_URL) : io();
     socketRef.current = newSocket;
 
     newSocket.on("connect", () => {

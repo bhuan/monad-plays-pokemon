@@ -5,9 +5,13 @@ import * as path from "path";
 import * as fs from "fs";
 import * as https from "https";
 import * as http from "http";
+import express from "express";
 import { config, contractAbi, Actions } from "./config";
 import { VoteAggregator } from "./voteAggregator";
 import { GameBoyEmulator } from "./emulator";
+
+// Frontend static files path
+const FRONTEND_DIST = path.join(__dirname, "..", "..", "frontend", "dist");
 
 // Paths
 const ROM_PATH = path.join(__dirname, "..", "roms", "pokemon-red.gb");
@@ -121,8 +125,23 @@ async function main() {
     process.exit(1);
   }
 
-  // Set up Socket.io server
-  const httpServer = createServer();
+  // Set up Express app to serve frontend
+  const app = express();
+
+  // Serve frontend static files if they exist
+  if (fs.existsSync(FRONTEND_DIST)) {
+    console.log("Serving frontend from:", FRONTEND_DIST);
+    app.use(express.static(FRONTEND_DIST));
+    // SPA fallback - serve index.html for all non-API routes
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/socket.io")) return next();
+      res.sendFile(path.join(FRONTEND_DIST, "index.html"));
+    });
+  } else {
+    console.log("Frontend dist not found, serving API only");
+  }
+
+  const httpServer = createServer(app);
   const io = new Server(httpServer, {
     cors: {
       origin: "*",

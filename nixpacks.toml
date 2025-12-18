@@ -2,10 +2,16 @@
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd indexer && npm install"]
+cmds = [
+  "cd frontend && npm install",
+  "cd indexer && npm install"
+]
 
 [phases.build]
-cmds = ["cd indexer && npm run build"]
+cmds = [
+  "cd frontend && npm run build",
+  "cd indexer && npm run build"
+]
 
 [start]
 cmd = "cd indexer && npm start"

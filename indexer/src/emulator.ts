@@ -31,7 +31,6 @@ export class GameBoyEmulator {
   private onFrame: ((frame: Buffer) => void) | null = null;
   private pendingButton: string | null = null;
   private buttonFramesRemaining: number = 0;
-  private isCompressing: boolean = false; // Prevent frame queue buildup
 
   constructor(romPath: string, savePath: string) {
     this.romPath = romPath;
@@ -95,33 +94,12 @@ export class GameBoyEmulator {
       // Advance frame
       this.gameboy.doFrame();
 
-      // Get frame data, compress, and emit
-      if (this.onFrame && !this.isCompressing) {
+      // Get frame data and emit (raw RGBA for same-origin, no compression needed)
+      if (this.onFrame) {
         const screen = this.gameboy.getScreen();
         if (screen) {
-          this.isCompressing = true;
-          const rawBuffer = Buffer.from(screen);
-
-          // Compress to JPEG (faster than PNG)
-          sharp(rawBuffer, {
-            raw: {
-              width: SCREEN_WIDTH,
-              height: SCREEN_HEIGHT,
-              channels: 4, // RGBA
-            },
-          })
-            .jpeg({ quality: 80, mozjpeg: false }) // Fast JPEG encoding
-            .toBuffer()
-            .then((compressedBuffer) => {
-              this.isCompressing = false;
-              if (this.onFrame) {
-                this.onFrame(compressedBuffer);
-              }
-            })
-            .catch((err) => {
-              this.isCompressing = false;
-              console.error("Frame compression error:", err);
-            });
+          const frameBuffer = Buffer.from(screen);
+          this.onFrame(frameBuffer);
         }
       }
     }, frameTime);

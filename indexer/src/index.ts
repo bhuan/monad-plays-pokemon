@@ -151,9 +151,23 @@ async function main() {
     maxHttpBufferSize: 1e7, // 10MB for frame data
   });
 
-  // Set up frame streaming
+  // Set up frame streaming with FPS tracking
+  let serverFrameCount = 0;
+  let lastFpsLogTime = Date.now();
+
   emulator.setFrameCallback((frameData: Buffer) => {
     io.emit("frame", frameData);
+    serverFrameCount++;
+
+    // Log server-side FPS every 5 seconds
+    const now = Date.now();
+    if (now - lastFpsLogTime >= 5000) {
+      const elapsed = (now - lastFpsLogTime) / 1000;
+      const fps = (serverFrameCount / elapsed).toFixed(1);
+      console.log(`[FPS] Server emitting ${fps} frames/sec (${serverFrameCount} frames in ${elapsed.toFixed(1)}s)`);
+      serverFrameCount = 0;
+      lastFpsLogTime = now;
+    }
   });
 
   // Track connected clients

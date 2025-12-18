@@ -96,10 +96,46 @@ body {
   background: #444;
 }
 
+.switch-network-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #e67e22;
+  color: white;
+  transition: all 0.2s;
+}
+
+.switch-network-btn:hover {
+  background: #d35400;
+  transform: translateY(-1px);
+}
+
 .error {
   color: #e74c3c;
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
+}
+
+.auth-hint {
+  color: #27ae60;
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+
+.powered-by {
+  margin-top: 0.5rem;
+}
+
+.powered-by a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.powered-by a:hover {
+  text-decoration: underline;
 }
 
 /* Main layout */

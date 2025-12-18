@@ -1,19 +1,28 @@
-import { useWallet } from "./hooks/useWallet";
+import { useAccount, useDisconnect, useConnect } from "wagmi";
 import { useSocket } from "./hooks/useSocket";
 import { VoteButtons } from "./components/VoteButtons";
 import { GameScreen } from "./components/GameScreen";
 import "./App.css";
 
 function App() {
-  const { address, signer, isConnecting, error, connect, disconnect, isConnected } =
-    useWallet();
+  const { address, isConnected, isConnecting } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { connect, connectors } = useConnect();
   const {
     isConnected: indexerConnected,
     lastResult,
     resultHistory,
     screenInfo,
-    setFrameCallback
+    setFrameCallback,
   } = useSocket();
+
+  const handleConnect = () => {
+    // Use the first available connector (injected - MetaMask, etc.)
+    const injectedConnector = connectors.find((c) => c.id === "injected");
+    if (injectedConnector) {
+      connect({ connector: injectedConnector });
+    }
+  };
 
   return (
     <div className="app">
@@ -27,13 +36,13 @@ function App() {
               <span className="address">
                 {address?.slice(0, 6)}...{address?.slice(-4)}
               </span>
-              <button onClick={disconnect} className="disconnect-btn">
+              <button onClick={() => disconnect()} className="disconnect-btn">
                 Disconnect
               </button>
             </div>
           ) : (
             <button
-              onClick={connect}
+              onClick={handleConnect}
               disabled={isConnecting}
               className="connect-btn"
             >
@@ -42,7 +51,9 @@ function App() {
           )}
         </div>
 
-        {error && <p className="error">{error}</p>}
+        <p className="auth-hint">
+          Connect your wallet to vote on game inputs!
+        </p>
       </header>
 
       <main className="main">
@@ -56,7 +67,7 @@ function App() {
         </div>
 
         <div className="controls-container">
-          <VoteButtons signer={signer} disabled={!isConnected} />
+          <VoteButtons disabled={!isConnected} />
 
           <div className="vote-history">
             <h4>Recent Winning Moves</h4>
@@ -71,8 +82,12 @@ function App() {
                   .map((result) => (
                     <li key={result.windowId}>
                       <span className="window-id">#{result.windowId}</span>
-                      <span className="winning-action">{result.winningAction}</span>
-                      <span className="vote-count">({result.totalVotes} votes)</span>
+                      <span className="winning-action">
+                        {result.winningAction}
+                      </span>
+                      <span className="vote-count">
+                        ({result.totalVotes} votes)
+                      </span>
                     </li>
                   ))}
               </ul>

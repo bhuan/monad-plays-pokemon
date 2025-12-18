@@ -10,10 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@0xsequence/connect": "^5.4.8",
+    "@0xsequence/hooks": "^5.4.8",
+    "@tanstack/react-query": "^5.90.12",
+    "0xsequence": "^2.3.38",
     "ethers": "^6.16.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "socket.io-client": "^4.8.1",
+    "viem": "^2.42.0",
+    "wagmi": "^3.1.0",
     "wasmboy": "^0.7.1"
   },
   "devDependencies": {

@@ -102,24 +102,6 @@ async function main() {
     httpProvider
   );
 
-  // Connect to Monad via WebSocket
-  let wsProvider: ethers.WebSocketProvider;
-
-  try {
-    wsProvider = new ethers.WebSocketProvider(config.rpcUrl);
-    console.log("Connected to Monad WebSocket");
-  } catch (err) {
-    console.error("Failed to connect to WebSocket provider:", err);
-    process.exit(1);
-  }
-
-  // Create WebSocket contract instance
-  const wsContract = new ethers.Contract(
-    config.contractAddress,
-    contractAbi,
-    wsProvider
-  );
-
   // Process a vote event (with deduplication)
   function processVoteEvent(
     player: string,
@@ -127,7 +109,7 @@ async function main() {
     blockNumber: number,
     txHash: string,
     logIndex: number,
-    source: "ws" | "poll"
+    source: "ws" | "poll" | "proposed"
   ): boolean {
     const eventKey = getEventKey(blockNumber, txHash, logIndex);
 
@@ -143,15 +125,105 @@ async function main() {
     return true;
   }
 
-  // Listen for VoteCast events via WebSocket
-  wsContract.on("VoteCast", (player: string, action: bigint, event: any) => {
-    const blockNumber = event.log.blockNumber;
-    const txHash = event.log.transactionHash;
-    const logIndex = event.log.index;
+  // VoteCast event signature: keccak256("VoteCast(address,uint8)")
+  const VOTE_CAST_TOPIC = ethers.id("VoteCast(address,uint8)");
 
-    lastWebSocketBlock = Math.max(lastWebSocketBlock, blockNumber);
-    processVoteEvent(player, Number(action), blockNumber, txHash, logIndex, "ws");
-  });
+  // Connect to Monad WebSocket for monadNewHeads subscription
+  const WebSocket = require("ws");
+  let ws: InstanceType<typeof WebSocket>;
+  let wsReconnectTimeout: NodeJS.Timeout | null = null;
+
+  function connectWebSocket(): void {
+    console.log("Connecting to Monad WebSocket for monadNewHeads (Proposed state)...");
+
+    ws = new WebSocket(config.rpcUrl);
+
+    ws.on("open", () => {
+      console.log("Connected to Monad WebSocket");
+
+      // Subscribe to monadNewHeads with Proposed state for fastest block detection
+      const subscribeMsg = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "monad_subscribe",
+        params: ["monadNewHeads", { state: "Proposed" }]
+      });
+      ws.send(subscribeMsg);
+      console.log("Subscribed to monadNewHeads (Proposed state)");
+    });
+
+    ws.on("message", async (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        // Handle subscription confirmation
+        if (msg.id === 1 && msg.result) {
+          console.log(`Subscription ID: ${msg.result}`);
+          return;
+        }
+
+        // Handle subscription data (new proposed block)
+        if (msg.method === "monad_subscription" && msg.params?.result) {
+          const blockData = msg.params.result;
+          const blockNumber = parseInt(blockData.number, 16);
+          const blockHash = blockData.hash;
+
+          lastWebSocketBlock = Math.max(lastWebSocketBlock, blockNumber);
+
+          // Trigger window progression on each proposed block
+          aggregator.onBlock(blockNumber);
+
+          // Fetch receipts for this block to find VoteCast events
+          // Use eth_getBlockReceipts for efficiency
+          try {
+            const receipts = await httpProvider.send("eth_getBlockReceipts", [blockData.number]);
+
+            if (receipts && Array.isArray(receipts)) {
+              for (const receipt of receipts) {
+                // Check if this transaction is to our contract
+                if (receipt.to?.toLowerCase() !== config.contractAddress.toLowerCase()) {
+                  continue;
+                }
+
+                // Look for VoteCast events in the logs
+                for (const log of receipt.logs || []) {
+                  if (log.topics?.[0] === VOTE_CAST_TOPIC) {
+                    // Decode the event
+                    // topics[1] = indexed player address (padded to 32 bytes)
+                    // data = action (uint8)
+                    const player = "0x" + log.topics[1].slice(26);
+                    const action = parseInt(log.data, 16);
+                    const txHash = receipt.transactionHash;
+                    const logIndex = parseInt(log.logIndex, 16);
+
+                    processVoteEvent(player, action, blockNumber, txHash, logIndex, "proposed");
+                  }
+                }
+              }
+            }
+          } catch (receiptErr) {
+            // eth_getBlockReceipts might not be available, fall back to polling
+            // This is fine - polling will catch it
+          }
+        }
+      } catch (parseErr) {
+        // Ignore parse errors for non-JSON messages
+      }
+    });
+
+    ws.on("error", (err: Error) => {
+      console.error("WebSocket error:", err.message);
+    });
+
+    ws.on("close", () => {
+      console.log("WebSocket disconnected, reconnecting in 5 seconds...");
+      if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
+      wsReconnectTimeout = setTimeout(connectWebSocket, 5000);
+    });
+  }
+
+  // Start WebSocket connection
+  connectWebSocket();
 
   // Poll for events via HTTP RPC
   async function pollForEvents(): Promise<void> {
@@ -253,7 +325,8 @@ async function main() {
     console.log("\nShutting down...");
     emulator.saveState();
     emulator.stop();
-    wsProvider.destroy();
+    if (ws) ws.close();
+    if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
     httpServer.close();
     process.exit(0);
   });

@@ -29,3 +29,10 @@ contracts/out/
 # ROMs (copyrighted)
 *.gb
 *.gbc
+
+# Save files
+*.sav
+
+# Deploy scripts with private keys
+deploy-create2.js
+**/deploy-create2.js

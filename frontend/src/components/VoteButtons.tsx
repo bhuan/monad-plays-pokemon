@@ -1,18 +1,35 @@
 import { useState, useEffect, useRef } from "react";
-import { ethers } from "ethers";
-import { Action, ACTION_LABELS, getContract, type ActionType } from "../utils/contract";
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import {
+  Action,
+  ACTION_LABELS,
+  CONTRACT_ADDRESS,
+  CONTRACT_ABI,
+  type ActionType,
+} from "../config/wagmi";
 import "./VoteButtons.css";
 
 interface VoteButtonsProps {
-  signer: ethers.Signer | null;
   disabled?: boolean;
 }
 
-export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
-  const [voting, setVoting] = useState<ActionType | null>(null);
+export function VoteButtons({ disabled }: VoteButtonsProps) {
+  const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [lastVote, setLastVote] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const {
+    writeContract,
+    data: txHash,
+    isPending: isWriting,
+    error: writeError,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
 
   // Auto-clear error after 3 seconds
   useEffect(() => {
@@ -25,32 +42,63 @@ export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
     };
   }, [error]);
 
-  const vote = async (action: ActionType) => {
-    if (!signer || voting !== null) return;
+  // Handle write errors
+  useEffect(() => {
+    if (writeError) {
+      const errMsg = writeError.message || "Vote failed";
+      if (
+        errMsg.includes("rejected") ||
+        errMsg.includes("denied") ||
+        errMsg.includes("cancelled")
+      ) {
+        setError("Transaction cancelled");
+      } else {
+        setError(errMsg.slice(0, 100));
+      }
+      setPendingAction(null);
+      reset();
+    }
+  }, [writeError, reset]);
 
-    setVoting(action);
+  // Handle successful transaction
+  useEffect(() => {
+    if (isSuccess && pendingAction !== null) {
+      setLastVote(pendingAction);
+      setPendingAction(null);
+      reset();
+    }
+  }, [isSuccess, pendingAction, reset]);
+
+  const vote = async (action: ActionType) => {
+    if (disabled || isWriting || isConfirming) return;
+
+    setPendingAction(action);
     setError(null);
 
     try {
-      const contract = await getContract(signer);
-      const tx = await contract.vote(action);
-      await tx.wait();
-      setLastVote(action);
+      writeContract({
+        address: CONTRACT_ADDRESS as `0x${string}`,
+        abi: CONTRACT_ABI,
+        functionName: "vote",
+        args: [action],
+      });
     } catch (err: any) {
       console.error("Vote failed:", err);
-      // Handle user rejection gracefully
-      if (err?.code === "ACTION_REJECTED" || err?.code === 4001 ||
-          err?.message?.includes("rejected") || err?.message?.includes("denied")) {
-        setError("Transaction cancelled");
-      } else {
-        setError(err?.shortMessage || err?.message || "Vote failed");
-      }
-    } finally {
-      setVoting(null);
+      setError(err?.message || "Vote failed");
+      setPendingAction(null);
     }
   };
 
-  const isDisabled = disabled || !signer;
+  const isVoting = isWriting || isConfirming;
+  const isDisabled = disabled || isVoting;
+
+  const getButtonText = (action: ActionType, label: string) => {
+    if (pendingAction === action) {
+      if (isWriting) return "...";
+      if (isConfirming) return "...";
+    }
+    return label;
+  };
 
   return (
     <div className="vote-buttons">
@@ -61,33 +109,33 @@ export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
         <button
           className="dpad-btn up"
           onClick={() => vote(Action.UP)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.UP ? "..." : "UP"}
+          {getButtonText(Action.UP, "UP")}
         </button>
         <div className="dpad-middle">
           <button
             className="dpad-btn left"
             onClick={() => vote(Action.LEFT)}
-            disabled={isDisabled || voting !== null}
+            disabled={isDisabled}
           >
-            {voting === Action.LEFT ? "..." : "LEFT"}
+            {getButtonText(Action.LEFT, "LEFT")}
           </button>
           <div className="dpad-center" />
           <button
             className="dpad-btn right"
             onClick={() => vote(Action.RIGHT)}
-            disabled={isDisabled || voting !== null}
+            disabled={isDisabled}
           >
-            {voting === Action.RIGHT ? "..." : "RIGHT"}
+            {getButtonText(Action.RIGHT, "RIGHT")}
           </button>
         </div>
         <button
           className="dpad-btn down"
           onClick={() => vote(Action.DOWN)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.DOWN ? "..." : "DOWN"}
+          {getButtonText(Action.DOWN, "DOWN")}
         </button>
       </div>
 
@@ -96,16 +144,16 @@ export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
         <button
           className="action-btn b"
           onClick={() => vote(Action.B)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.B ? "..." : "B"}
+          {getButtonText(Action.B, "B")}
         </button>
         <button
           className="action-btn a"
           onClick={() => vote(Action.A)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.A ? "..." : "A"}
+          {getButtonText(Action.A, "A")}
         </button>
       </div>
 
@@ -114,16 +162,16 @@ export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
         <button
           className="menu-btn"
           onClick={() => vote(Action.SELECT)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.SELECT ? "..." : "SELECT"}
+          {getButtonText(Action.SELECT, "SELECT")}
         </button>
         <button
           className="menu-btn"
           onClick={() => vote(Action.START)}
-          disabled={isDisabled || voting !== null}
+          disabled={isDisabled}
         >
-          {voting === Action.START ? "..." : "START"}
+          {getButtonText(Action.START, "START")}
         </button>
       </div>
 
@@ -133,7 +181,7 @@ export function VoteButtons({ signer, disabled }: VoteButtonsProps) {
 
       {error && <p className="error">{error}</p>}
 
-      {!signer && <p className="warning">Connect wallet to vote</p>}
+      {disabled && <p className="warning">Sign in to vote</p>}
     </div>
   );
 }

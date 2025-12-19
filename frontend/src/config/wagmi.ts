@@ -1,5 +1,5 @@
-import { http, createConfig } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { http } from "wagmi";
+import { createConfig } from "@privy-io/wagmi";
 import { defineChain } from "viem";
 
 // Define Monad Testnet chain
@@ -26,16 +26,14 @@ export const monadTestnet = defineChain({
   testnet: true,
 });
 
-// Create wagmi config with injected connector (MetaMask, etc.)
+// Create wagmi config - Privy handles wallet connections
+// Cast needed due to viem version mismatch between packages
 export const wagmiConfig = createConfig({
-  chains: [monadTestnet],
-  connectors: [
-    injected(),
-  ],
+  chains: [monadTestnet] as const,
   transports: {
     [monadTestnet.id]: http("https://testnet-rpc.monad.xyz"),
   },
-});
+} as Parameters<typeof createConfig>[0]);
 
 // Contract address
 export const CONTRACT_ADDRESS =

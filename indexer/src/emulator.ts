@@ -128,7 +128,7 @@ export class GameBoyEmulator {
         channels: 4,
       },
     })
-      .jpeg({ quality: 45, chromaSubsampling: '4:2:0' })
+      .jpeg({ quality: 75, chromaSubsampling: '4:2:0' })
       .toBuffer()
       .then((compressed) => {
         this.compressionInFlight--;

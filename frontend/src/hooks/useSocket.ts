@@ -6,6 +6,7 @@ export interface WindowResult {
   startBlock: number;
   endBlock: number;
   winningAction: string;
+  winningTxHash: string | null;
   votes: Record<string, number>;
   totalVotes: number;
 }

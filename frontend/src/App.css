@@ -212,16 +212,31 @@ body {
   border-bottom: none;
 }
 
-.window-id {
+.block-range {
   color: #666;
   font-family: monospace;
-  min-width: 40px;
+  min-width: 90px;
+  font-size: 0.75rem;
+}
+
+.block-range a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.block-range a:hover {
+  text-decoration: underline;
 }
 
 .winning-action {
   color: #27ae60;
   font-weight: 600;
   flex: 1;
+  text-decoration: none;
+}
+
+a.winning-action:hover {
+  text-decoration: underline;
 }
 
 .vote-count {

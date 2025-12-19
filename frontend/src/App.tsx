@@ -145,10 +145,37 @@ function App() {
                   .slice(0, 10)
                   .map((result) => (
                     <li key={result.windowId}>
-                      <span className="window-id">#{result.windowId}</span>
-                      <span className="winning-action">
-                        {result.winningAction}
+                      <span className="block-range">
+                        <a
+                          href={`https://testnet.monadvision.com/block/${result.startBlock}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {result.startBlock}
+                        </a>
+                        -
+                        <a
+                          href={`https://testnet.monadvision.com/block/${result.endBlock}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {result.endBlock}
+                        </a>
                       </span>
+                      {result.winningTxHash ? (
+                        <a
+                          className="winning-action"
+                          href={`https://testnet.monadvision.com/tx/${result.winningTxHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {result.winningAction}
+                        </a>
+                      ) : (
+                        <span className="winning-action">
+                          {result.winningAction}
+                        </span>
+                      )}
                       <span className="vote-count">
                         ({result.totalVotes} votes)
                       </span>

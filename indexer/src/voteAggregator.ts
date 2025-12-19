@@ -4,6 +4,7 @@ interface Vote {
   player: string;
   action: number;
   blockNumber: number;
+  txHash: string;
 }
 
 interface WindowResult {
@@ -11,6 +12,7 @@ interface WindowResult {
   startBlock: number;
   endBlock: number;
   winningAction: Action;
+  winningTxHash: string | null;
   votes: Record<Action, number>;
   totalVotes: number;
 }
@@ -33,7 +35,7 @@ export class VoteAggregator {
     return Math.floor(blockNumber / this.windowSize);
   }
 
-  addVote(player: string, action: number, blockNumber: number): void {
+  addVote(player: string, action: number, blockNumber: number, txHash: string): void {
     const windowId = this.getWindowId(blockNumber);
 
     // Initialize window if first vote
@@ -54,7 +56,7 @@ export class VoteAggregator {
     if (!this.votes.has(windowId)) {
       this.votes.set(windowId, []);
     }
-    this.votes.get(windowId)!.push({ player, action, blockNumber });
+    this.votes.get(windowId)!.push({ player, action, blockNumber, txHash });
 
     console.log(
       `Vote: ${player.slice(0, 8)}... voted ${Actions[action]} in block ${blockNumber} (window ${windowId})`
@@ -70,7 +72,7 @@ export class VoteAggregator {
       return;
     }
 
-    // Count votes per action
+    // Count votes per action and track first vote txHash per action
     const voteCounts: Record<Action, number> = {
       UP: 0,
       DOWN: 0,
@@ -81,10 +83,14 @@ export class VoteAggregator {
       START: 0,
       SELECT: 0,
     };
+    const firstVoteTxHash: Record<Action, string> = {} as Record<Action, string>;
 
     for (const vote of windowVotes) {
       const actionName = Actions[vote.action];
       if (actionName) {
+        if (!firstVoteTxHash[actionName]) {
+          firstVoteTxHash[actionName] = vote.txHash;
+        }
         voteCounts[actionName]++;
       }
     }
@@ -105,6 +111,7 @@ export class VoteAggregator {
       startBlock: windowId * this.windowSize,
       endBlock: (windowId + 1) * this.windowSize - 1,
       winningAction,
+      winningTxHash: firstVoteTxHash[winningAction] || null,
       votes: voteCounts,
       totalVotes: windowVotes.length,
     };

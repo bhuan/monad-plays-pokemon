@@ -254,7 +254,7 @@ async function main() {
     }
 
     seenEvents.add(eventKey);
-    aggregator.addVote(player, action, blockNumber);
+    aggregator.addVote(player, action, blockNumber, txHash);
     console.log(
       `[${source}] Vote: ${player.slice(0, 8)}... voted ${Actions[action]} in block ${blockNumber}`
     );

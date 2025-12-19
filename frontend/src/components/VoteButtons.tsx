@@ -165,31 +165,37 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
           onClick={() => vote(Action.UP)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.UP, "UP")}
+          {pendingAction === Action.UP && (isVoting || isWriting || isConfirming)
+            ? <span className="loading">...</span>
+            : <span className="arrow" />}
         </button>
-        <div className="dpad-middle">
-          <button
-            className="dpad-btn left"
-            onClick={() => vote(Action.LEFT)}
-            disabled={isDisabled}
-          >
-            {getButtonText(Action.LEFT, "LEFT")}
-          </button>
-          <div className="dpad-center" />
-          <button
-            className="dpad-btn right"
-            onClick={() => vote(Action.RIGHT)}
-            disabled={isDisabled}
-          >
-            {getButtonText(Action.RIGHT, "RIGHT")}
-          </button>
-        </div>
+        <button
+          className="dpad-btn left"
+          onClick={() => vote(Action.LEFT)}
+          disabled={isDisabled}
+        >
+          {pendingAction === Action.LEFT && (isVoting || isWriting || isConfirming)
+            ? <span className="loading">...</span>
+            : <span className="arrow" />}
+        </button>
+        <div className="dpad-center" />
+        <button
+          className="dpad-btn right"
+          onClick={() => vote(Action.RIGHT)}
+          disabled={isDisabled}
+        >
+          {pendingAction === Action.RIGHT && (isVoting || isWriting || isConfirming)
+            ? <span className="loading">...</span>
+            : <span className="arrow" />}
+        </button>
         <button
           className="dpad-btn down"
           onClick={() => vote(Action.DOWN)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.DOWN, "DOWN")}
+          {pendingAction === Action.DOWN && (isVoting || isWriting || isConfirming)
+            ? <span className="loading">...</span>
+            : <span className="arrow" />}
         </button>
       </div>
 

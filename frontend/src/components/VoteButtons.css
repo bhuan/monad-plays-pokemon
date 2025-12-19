@@ -15,43 +15,39 @@
 
 /* D-Pad styles */
 .dpad {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-}
-
-.dpad-middle {
-  display: flex;
-  align-items: center;
-  gap: 0;
+  display: grid;
+  grid-template-areas:
+    ".    up   ."
+    "left center right"
+    ".    down .";
+  grid-template-columns: 40px 40px 40px;
+  grid-template-rows: 40px 40px 40px;
+  gap: 2px;
 }
 
 .dpad-center {
-  width: 40px;
-  height: 40px;
+  grid-area: center;
   background: #333;
   border-radius: 4px;
 }
 
 .dpad-btn {
-  width: 50px;
-  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #444;
   border: none;
-  color: white;
-  font-weight: bold;
-  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.15s;
+  padding: 0;
 }
 
 .dpad-btn:hover:not(:disabled) {
-  background: #666;
+  background: #555;
 }
 
 .dpad-btn:active:not(:disabled) {
-  background: #888;
+  background: #666;
   transform: scale(0.95);
 }
 
@@ -61,23 +57,75 @@
 }
 
 .dpad-btn.up {
+  grid-area: up;
   border-radius: 8px 8px 0 0;
 }
 
 .dpad-btn.down {
+  grid-area: down;
   border-radius: 0 0 8px 8px;
 }
 
 .dpad-btn.left {
+  grid-area: left;
   border-radius: 8px 0 0 8px;
-  width: 40px;
-  height: 50px;
 }
 
 .dpad-btn.right {
+  grid-area: right;
   border-radius: 0 8px 8px 0;
-  width: 40px;
-  height: 50px;
+}
+
+/* Triangle arrows */
+.dpad-btn .arrow {
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+}
+
+.dpad-btn.up .arrow {
+  border-bottom: 12px solid rgba(255, 255, 255, 0.4);
+  border-top: none;
+}
+
+.dpad-btn.down .arrow {
+  border-top: 12px solid rgba(255, 255, 255, 0.4);
+  border-bottom: none;
+}
+
+.dpad-btn.left .arrow {
+  border-right: 12px solid rgba(255, 255, 255, 0.4);
+  border-left: none;
+}
+
+.dpad-btn.right .arrow {
+  border-left: 12px solid rgba(255, 255, 255, 0.4);
+  border-right: none;
+}
+
+.dpad-btn:hover:not(:disabled) .arrow {
+  border-color: transparent;
+}
+
+.dpad-btn.up:hover:not(:disabled) .arrow {
+  border-bottom-color: rgba(255, 255, 255, 0.7);
+}
+
+.dpad-btn.down:hover:not(:disabled) .arrow {
+  border-top-color: rgba(255, 255, 255, 0.7);
+}
+
+.dpad-btn.left:hover:not(:disabled) .arrow {
+  border-right-color: rgba(255, 255, 255, 0.7);
+}
+
+.dpad-btn.right:hover:not(:disabled) .arrow {
+  border-left-color: rgba(255, 255, 255, 0.7);
+}
+
+.dpad-btn .loading {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.7rem;
 }
 
 /* Action buttons (A, B) */

@@ -6,6 +6,7 @@ interface GameScreenProps {
   lastResult: WindowResult | null;
   isConnected: boolean;
   screenInfo: ScreenInfo;
+  viewerCount: number;
   setFrameCallback: (callback: (frame: ArrayBuffer) => void) => void;
 }
 
@@ -18,6 +19,7 @@ export function GameScreen({
   lastResult,
   isConnected,
   screenInfo,
+  viewerCount,
   setFrameCallback
 }: GameScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -92,12 +94,35 @@ export function GameScreen({
         <span className={`status-dot ${isConnected ? "connected" : ""}`} />
         <span>{isConnected ? "Connected" : "Disconnected"}</span>
         {isConnected && <span className="fps-counter">{fps} FPS</span>}
+        {viewerCount > 0 && (
+          <span className="viewer-count">
+            <span className="viewer-dot" />
+            {viewerCount} watching
+          </span>
+        )}
         <span className="rom-status">Pokemon Red</span>
       </div>
 
       {lastResult && (
         <div className="window-info">
-          <span>Window #{lastResult.windowId}</span>
+          <span className="block-range">
+            Blocks{" "}
+            <a
+              href={`https://testnet.monadvision.com/block/${lastResult.startBlock}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {lastResult.startBlock}
+            </a>
+            -
+            <a
+              href={`https://testnet.monadvision.com/block/${lastResult.endBlock}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {lastResult.endBlock}
+            </a>
+          </span>
           <span>Votes: {lastResult.totalVotes}</span>
         </div>
       )}

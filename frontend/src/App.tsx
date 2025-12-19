@@ -17,6 +17,7 @@ function App() {
     lastResult,
     resultHistory,
     screenInfo,
+    viewerCount,
     setFrameCallback,
   } = useSocket();
 
@@ -126,6 +127,7 @@ function App() {
             lastResult={lastResult}
             isConnected={indexerConnected}
             screenInfo={screenInfo}
+            viewerCount={viewerCount}
             setFrameCallback={setFrameCallback}
           />
         </div>

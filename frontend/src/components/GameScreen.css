@@ -68,6 +68,27 @@
   font-size: 0.75rem;
 }
 
+.viewer-count {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #e74c3c;
+  font-size: 0.8rem;
+}
+
+.viewer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .shared-state-notice {
   margin-top: 0.5rem;
   padding: 0.5rem 1rem;
@@ -84,6 +105,15 @@
   gap: 1rem;
   font-size: 0.8rem;
   color: #666;
+}
+
+.window-info .block-range a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.window-info .block-range a:hover {
+  text-decoration: underline;
 }
 
 .move-history {

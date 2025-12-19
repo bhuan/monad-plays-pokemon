@@ -38,6 +38,7 @@ export function useSocket() {
   const [lastResult, setLastResult] = useState<WindowResult | null>(null);
   const [resultHistory, setResultHistory] = useState<WindowResult[]>([]);
   const [screenInfo, setScreenInfo] = useState<ScreenInfo>({ width: 160, height: 144 });
+  const [viewerCount, setViewerCount] = useState(0);
   const frameCallbackRef = useRef<((frame: ArrayBuffer) => void) | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -91,12 +92,14 @@ export function useSocket() {
     ws.onmessage = (event) => {
       const data = event.data;
 
-      // Handle JSON messages (screenInfo)
+      // Handle JSON messages (screenInfo, viewerCount)
       if (typeof data === "string") {
         try {
           const msg = JSON.parse(data);
           if (msg.type === "screenInfo") {
             setScreenInfo({ width: msg.width, height: msg.height });
+          } else if (msg.type === "viewerCount") {
+            setViewerCount(msg.count);
           }
         } catch {
           // Ignore parse errors
@@ -130,6 +133,7 @@ export function useSocket() {
     lastResult,
     resultHistory,
     screenInfo,
+    viewerCount,
     setFrameCallback,
     clearHistory,
   };

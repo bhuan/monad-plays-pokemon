@@ -157,20 +157,34 @@ async function main() {
   const wss = new WebSocketServer({ server: httpServer, path: "/stream" });
   const frameClients = new Set<WebSocket>();
 
-  wss.on("connection", (ws) => {
-    console.log(`[WS] Frame client connected (total: ${frameClients.size + 1})`);
-    frameClients.add(ws);
+  // Broadcast viewer count to all clients
+  function broadcastViewerCount() {
+    const count = frameClients.size;
+    const msg = JSON.stringify({ type: "viewerCount", count });
+    for (const client of frameClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    }
+  }
 
-    // Send screen info immediately
+  wss.on("connection", (ws) => {
+    frameClients.add(ws);
+    console.log(`[WS] Frame client connected (total: ${frameClients.size})`);
+
+    // Send screen info and viewer count immediately
     ws.send(JSON.stringify({ type: "screenInfo", ...emulator.getScreenDimensions() }));
+    broadcastViewerCount();
 
     ws.on("close", () => {
       frameClients.delete(ws);
       console.log(`[WS] Frame client disconnected (total: ${frameClients.size})`);
+      broadcastViewerCount();
     });
 
     ws.on("error", () => {
       frameClients.delete(ws);
+      broadcastViewerCount();
     });
   });
 

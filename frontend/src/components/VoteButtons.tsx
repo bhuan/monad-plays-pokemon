@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { encodeFunctionData } from "viem";
 import {
   Action,
   ACTION_LABELS,
@@ -17,8 +19,14 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [lastVote, setLastVote] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Privy hooks for embedded wallet
+  const { sendTransaction: privySendTransaction } = useSendTransaction();
+  const { wallets } = useWallets();
+
+  // Wagmi hooks for external wallets (MetaMask, etc.)
   const {
     writeContract,
     data: txHash,
@@ -31,6 +39,9 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
     hash: txHash,
   });
 
+  // Check if user has an embedded wallet
+  const hasEmbeddedWallet = wallets.some((w) => w.walletClientType === "privy");
+
   // Auto-clear error after 3 seconds
   useEffect(() => {
     if (error) {
@@ -42,9 +53,21 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
     };
   }, [error]);
 
-  // Handle write errors
+  // Handle wagmi transaction success (for external wallets)
+  useEffect(() => {
+    if (isSuccess && pendingAction !== null) {
+      console.log("Vote tx confirmed (wagmi):", txHash);
+      setLastVote(pendingAction);
+      setPendingAction(null);
+      setIsVoting(false);
+      reset();
+    }
+  }, [isSuccess, txHash, pendingAction, reset]);
+
+  // Handle wagmi write errors (for external wallets)
   useEffect(() => {
     if (writeError) {
+      console.error("Vote failed (wagmi):", writeError);
       const errMsg = writeError.message || "Vote failed";
       if (
         errMsg.includes("rejected") ||
@@ -56,46 +79,77 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
         setError(errMsg.slice(0, 100));
       }
       setPendingAction(null);
+      setIsVoting(false);
       reset();
     }
   }, [writeError, reset]);
 
-  // Handle successful transaction
-  useEffect(() => {
-    if (isSuccess && pendingAction !== null) {
-      setLastVote(pendingAction);
-      setPendingAction(null);
-      reset();
-    }
-  }, [isSuccess, pendingAction, reset]);
-
   const vote = async (action: ActionType) => {
-    if (disabled || isWriting || isConfirming) return;
+    if (disabled || isVoting) return;
 
     setPendingAction(action);
     setError(null);
+    setIsVoting(true);
 
     try {
-      writeContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        abi: CONTRACT_ABI,
-        functionName: "vote",
-        args: [action],
-      });
+      if (hasEmbeddedWallet) {
+        // Use Privy's sendTransaction for embedded wallets (auto-approve, no popup)
+        const data = encodeFunctionData({
+          abi: CONTRACT_ABI,
+          functionName: "vote",
+          args: [action],
+        });
+
+        const txReceipt = await privySendTransaction(
+          {
+            to: CONTRACT_ADDRESS as `0x${string}`,
+            data,
+          },
+          {
+            uiOptions: {
+              showWalletUIs: false, // Disable confirmation popup
+            },
+          }
+        );
+
+        console.log("Vote tx sent (Privy):", txReceipt.hash);
+        setLastVote(action);
+        setPendingAction(null);
+        setIsVoting(false);
+      } else {
+        // Use wagmi's writeContract for external wallets (MetaMask, etc.)
+        // This will show the wallet's native approval popup
+        // Don't clear pending state here - let the useEffect handle it when tx completes
+        writeContract({
+          address: CONTRACT_ADDRESS as `0x${string}`,
+          abi: CONTRACT_ABI,
+          functionName: "vote",
+          args: [action],
+        });
+        // Note: success/error is handled in useEffect watching isSuccess/writeError
+      }
     } catch (err: any) {
       console.error("Vote failed:", err);
-      setError(err?.message || "Vote failed");
+      const errMsg = err?.message || "Vote failed";
+      if (
+        errMsg.includes("rejected") ||
+        errMsg.includes("denied") ||
+        errMsg.includes("cancelled")
+      ) {
+        setError("Transaction cancelled");
+      } else {
+        setError(errMsg.slice(0, 100));
+      }
       setPendingAction(null);
+      setIsVoting(false);
     }
   };
 
-  const isVoting = isWriting || isConfirming;
-  const isDisabled = disabled || isVoting;
+  const isDisabled = disabled || isVoting || isWriting || isConfirming;
 
   const getButtonText = (action: ActionType, label: string) => {
-    if (pendingAction === action) {
-      if (isWriting) return "...";
-      if (isConfirming) return "...";
+    if (pendingAction === action && (isVoting || isWriting || isConfirming)) {
+      return "...";
     }
     return label;
   };

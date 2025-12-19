@@ -2,14 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { ethers } from "ethers";
 import { MONAD_TESTNET } from "../utils/contract";
 
-declare global {
-  interface Window {
-    ethereum?: ethers.Eip1193Provider & {
-      on: (event: string, callback: (...args: unknown[]) => void) => void;
-      removeListener: (event: string, callback: (...args: unknown[]) => void) => void;
-    };
-  }
-}
+// Note: window.ethereum type is declared by @privy-io/react-auth
 
 export function useWallet() {
   const [address, setAddress] = useState<string | null>(null);

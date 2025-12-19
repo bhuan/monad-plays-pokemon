@@ -96,6 +96,23 @@ body {
   background: #444;
 }
 
+.copy-btn {
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #2a2a4a;
+  color: #aaa;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover {
+  background: #3a3a5a;
+  color: #fff;
+}
+
 .switch-network-btn {
   padding: 0.5rem 1rem;
   border: none;

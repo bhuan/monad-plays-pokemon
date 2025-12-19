@@ -1,13 +1,17 @@
-import { useAccount, useDisconnect, useConnect } from "wagmi";
+import { useEffect, useCallback, useState } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSetActiveWallet } from "@privy-io/wagmi";
+import { useAccount } from "wagmi";
 import { useSocket } from "./hooks/useSocket";
 import { VoteButtons } from "./components/VoteButtons";
 import { GameScreen } from "./components/GameScreen";
 import "./App.css";
 
 function App() {
-  const { address, isConnected, isConnecting } = useAccount();
-  const { disconnect } = useDisconnect();
-  const { connect, connectors } = useConnect();
+  const { login, logout, ready, authenticated, user } = usePrivy();
+  const { wallets, ready: walletsReady } = useWallets();
+  const { setActiveWallet } = useSetActiveWallet();
+  const { address, isConnected: walletConnected } = useAccount();
   const {
     isConnected: indexerConnected,
     lastResult,
@@ -16,13 +20,65 @@ function App() {
     setFrameCallback,
   } = useSocket();
 
-  const handleConnect = () => {
-    // Use the first available connector (injected - MetaMask, etc.)
-    const injectedConnector = connectors.find((c) => c.id === "injected");
-    if (injectedConnector) {
-      connect({ connector: injectedConnector });
+  // Debug: log wallet state
+  useEffect(() => {
+    console.log("Privy state:", {
+      ready,
+      authenticated,
+      walletsReady,
+      walletCount: wallets.length,
+      wallets: wallets.map(w => ({ address: w.address, type: w.walletClientType })),
+      walletConnected,
+      user: user?.wallet
+    });
+  }, [ready, authenticated, walletsReady, wallets, walletConnected, user]);
+
+  // Connect Privy wallet to wagmi when user authenticates
+  useEffect(() => {
+    const connectWallet = async () => {
+      if (authenticated && walletsReady && wallets.length > 0 && !walletConnected) {
+        // Find embedded wallet or use the first available wallet
+        const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+        const walletToConnect = embeddedWallet || wallets[0];
+        if (walletToConnect) {
+          console.log("Connecting wallet to wagmi:", walletToConnect.address);
+          try {
+            await setActiveWallet(walletToConnect);
+          } catch (err) {
+            console.error("Failed to set active wallet:", err);
+          }
+        }
+      }
+    };
+    connectWallet();
+  }, [authenticated, walletsReady, wallets, walletConnected, setActiveWallet]);
+
+  // Handle login - only call if not already authenticated
+  const handleLogin = useCallback(() => {
+    if (!authenticated) {
+      login();
     }
-  };
+  }, [authenticated, login]);
+
+  // Determine connection state - user is "connected" if authenticated with Privy
+  // Voting requires wallet to be connected to wagmi
+  const isLoggedIn = ready && authenticated;
+  const canVote = isLoggedIn && walletConnected;
+  const isConnecting = !ready;
+
+  // Get display address from wagmi or Privy user
+  const displayAddress = address || user?.wallet?.address;
+
+  // Copy address state
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = useCallback(() => {
+    if (displayAddress) {
+      navigator.clipboard.writeText(displayAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [displayAddress]);
 
   return (
     <div className="app">
@@ -31,28 +87,36 @@ function App() {
         <p className="subtitle">Decentralized gaming on Monad's 400ms blocks</p>
 
         <div className="wallet-section">
-          {isConnected ? (
+          {isLoggedIn ? (
             <div className="wallet-info">
-              <span className="address">
-                {address?.slice(0, 6)}...{address?.slice(-4)}
+              <span className="address" title={displayAddress || undefined}>
+                {displayAddress
+                  ? `${displayAddress.slice(0, 6)}...${displayAddress.slice(-4)}`
+                  : "No wallet"}
               </span>
-              <button onClick={() => disconnect()} className="disconnect-btn">
-                Disconnect
+              {displayAddress && (
+                <button onClick={copyAddress} className="copy-btn" title="Copy full address">
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              )}
+              {!walletConnected && <span className="connecting"> (connecting wallet...)</span>}
+              <button onClick={logout} className="disconnect-btn">
+                Logout
               </button>
             </div>
           ) : (
             <button
-              onClick={handleConnect}
+              onClick={handleLogin}
               disabled={isConnecting}
               className="connect-btn"
             >
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
+              {isConnecting ? "Loading..." : "Login"}
             </button>
           )}
         </div>
 
         <p className="auth-hint">
-          Connect your wallet to vote on game inputs!
+          Login with email, social, or wallet to vote!
         </p>
       </header>
 
@@ -67,7 +131,7 @@ function App() {
         </div>
 
         <div className="controls-container">
-          <VoteButtons disabled={!isConnected} />
+          <VoteButtons disabled={!canVote} />
 
           <div className="vote-history">
             <h4>Recent Winning Moves</h4>

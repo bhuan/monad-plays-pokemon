@@ -9,6 +9,11 @@ interface GameScreenProps {
   setFrameCallback: (callback: (frame: ArrayBuffer) => void) => void;
 }
 
+interface MoveEntry {
+  action: string;
+  txHash: string | null;
+}
+
 export function GameScreen({
   lastResult,
   isConnected,
@@ -16,7 +21,7 @@ export function GameScreen({
   setFrameCallback
 }: GameScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [moveHistory, setMoveHistory] = useState<string[]>([]);
+  const [moveHistory, setMoveHistory] = useState<MoveEntry[]>([]);
   const [fps, setFps] = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(Date.now());
@@ -65,7 +70,10 @@ export function GameScreen({
   // Track move history
   useEffect(() => {
     if (lastResult?.winningAction) {
-      setMoveHistory((prev) => [...prev.slice(-9), lastResult.winningAction]);
+      setMoveHistory((prev) => [...prev.slice(-9), {
+        action: lastResult.winningAction,
+        txHash: lastResult.winningTxHash,
+      }]);
     }
   }, [lastResult]);
 
@@ -96,8 +104,37 @@ export function GameScreen({
 
       {moveHistory.length > 0 && (
         <div className="move-history">
-          <span>Last: <strong>{moveHistory[moveHistory.length - 1]}</strong></span>
-          <span className="history-trail">{moveHistory.slice(-5).join(" → ")}</span>
+          <span>Last: {moveHistory[moveHistory.length - 1].txHash ? (
+            <a
+              href={`https://testnet.monadvision.com/tx/${moveHistory[moveHistory.length - 1].txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="move-link"
+            >
+              <strong>{moveHistory[moveHistory.length - 1].action}</strong>
+            </a>
+          ) : (
+            <strong>{moveHistory[moveHistory.length - 1].action}</strong>
+          )}</span>
+          <span className="history-trail">
+            {moveHistory.slice(-5).map((move, i, arr) => (
+              <span key={i}>
+                {move.txHash ? (
+                  <a
+                    href={`https://testnet.monadvision.com/tx/${move.txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="move-link"
+                  >
+                    {move.action}
+                  </a>
+                ) : (
+                  move.action
+                )}
+                {i < arr.length - 1 && " → "}
+              </span>
+            ))}
+          </span>
         </div>
       )}
 

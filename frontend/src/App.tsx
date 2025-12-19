@@ -162,20 +162,9 @@ function App() {
                           {result.endBlock}
                         </a>
                       </span>
-                      {result.winningTxHash ? (
-                        <a
-                          className="winning-action"
-                          href={`https://testnet.monadvision.com/tx/${result.winningTxHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {result.winningAction}
-                        </a>
-                      ) : (
-                        <span className="winning-action">
-                          {result.winningAction}
-                        </span>
-                      )}
+                      <span className="winning-action">
+                        {result.winningAction}
+                      </span>
                       <span className="vote-count">
                         ({result.totalVotes} votes)
                       </span>

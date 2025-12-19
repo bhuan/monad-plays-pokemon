@@ -232,11 +232,6 @@ body {
   color: #27ae60;
   font-weight: 600;
   flex: 1;
-  text-decoration: none;
-}
-
-a.winning-action:hover {
-  text-decoration: underline;
 }
 
 .vote-count {

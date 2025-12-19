@@ -106,6 +106,19 @@
   color: #666;
 }
 
+.move-link {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.move-link:hover {
+  text-decoration: underline;
+}
+
+.move-link strong {
+  color: #667eea;
+}
+
 .error-message {
   color: #e74c3c;
   font-size: 0.85rem;

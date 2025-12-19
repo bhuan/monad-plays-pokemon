@@ -260,6 +260,19 @@ body {
   margin: 0 0 0.5rem;
 }
 
+.footer .inspiration {
+  font-size: 0.75rem;
+}
+
+.footer .inspiration a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.footer .inspiration a:hover {
+  text-decoration: underline;
+}
+
 .key-mapping {
   font-family: monospace;
   font-size: 0.7rem;

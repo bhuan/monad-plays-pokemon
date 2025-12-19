@@ -183,6 +183,16 @@ function App() {
           Vote using blockchain transactions. Every 5 blocks, the most popular
           action is executed on the shared game.
         </p>
+        <p className="inspiration">
+          Inspired by{" "}
+          <a
+            href="https://en.wikipedia.org/wiki/Twitch_Plays_Pok%C3%A9mon"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Twitch Plays Pokémon
+          </a>
+        </p>
       </footer>
     </div>
   );

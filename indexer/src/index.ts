@@ -86,8 +86,11 @@ async function ensureRomExists(): Promise<void> {
   });
 }
 
-// Auto-save interval (every 60 seconds)
-const AUTO_SAVE_INTERVAL = 60000;
+// Auto-save interval (every 15 seconds to minimize data loss on redeploy)
+const AUTO_SAVE_INTERVAL = 15000;
+
+// Startup delay to allow old container to save before we read (Railway race condition)
+const STARTUP_SAVE_DELAY = 5000;
 
 // Frame streaming rate (FPS) - targeting native GameBoy rate (~60 FPS)
 const STREAM_FPS = 60;
@@ -128,6 +131,12 @@ async function main() {
   } catch (err) {
     console.error("Failed to get ROM:", err);
     process.exit(1);
+  }
+
+  // Wait for old container to save before reading (Railway redeploy race condition)
+  if (process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT) {
+    console.log(`Waiting ${STARTUP_SAVE_DELAY}ms for old container to save...`);
+    await new Promise((resolve) => setTimeout(resolve, STARTUP_SAVE_DELAY));
   }
 
   // Initialize GameBoy emulator (ROM must exist before this point)

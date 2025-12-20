@@ -62,7 +62,15 @@ export class GameBoyEmulator {
       try {
         const saveBuffer = fs.readFileSync(this.savePath);
         saveData = Array.from(saveBuffer);
+        // Debug: Check if save has meaningful data (not all zeros)
+        const nonZeroBytes = saveData.filter(b => b !== 0).length;
+        const checksum = saveData.slice(0, 100).reduce((a, b) => a + b, 0);
         console.log(`Save data loaded: ${saveBuffer.length} bytes from ${this.savePath}`);
+        console.log(`  Non-zero bytes: ${nonZeroBytes} (${(nonZeroBytes/saveData.length*100).toFixed(1)}%)`);
+        console.log(`  First 100 bytes checksum: ${checksum}`);
+        if (nonZeroBytes < 100) {
+          console.log("  WARNING: Save appears to be empty/fresh!");
+        }
       } catch (err) {
         console.error("Failed to load save data:", err);
       }
@@ -185,8 +193,15 @@ export class GameBoyEmulator {
     try {
       const saveData = this.gameboy.getSaveData();
       if (saveData && saveData.length > 0) {
+        // Debug: Check if save has meaningful data
+        const nonZeroBytes = saveData.filter((b: number) => b !== 0).length;
+        const checksum = saveData.slice(0, 100).reduce((a: number, b: number) => a + b, 0);
         fs.writeFileSync(this.savePath, Buffer.from(saveData));
-        console.log("Game saved to:", this.savePath);
+        console.log(`Game saved to: ${this.savePath}`);
+        console.log(`  Size: ${saveData.length} bytes, non-zero: ${nonZeroBytes} (${(nonZeroBytes/saveData.length*100).toFixed(1)}%)`);
+        console.log(`  First 100 bytes checksum: ${checksum}`);
+      } else {
+        console.log("No save data to write (SRAM empty)");
       }
     } catch (err) {
       console.error("Failed to save:", err);

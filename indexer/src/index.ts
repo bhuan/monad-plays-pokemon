@@ -16,7 +16,15 @@ const FRONTEND_DIST = path.join(__dirname, "..", "..", "frontend", "dist");
 
 // Paths
 const ROM_PATH = path.join(__dirname, "..", "roms", "pokemon-red.gb");
-const SAVE_PATH = path.join(__dirname, "..", "saves", "pokemon-red.sav");
+// Use SAVE_DIR env var for Railway volume, fallback to local saves folder
+const SAVE_DIR = process.env.SAVE_DIR || path.join(__dirname, "..", "saves");
+const SAVE_PATH = path.join(SAVE_DIR, "pokemon-red.sav");
+
+// Ensure save directory exists
+if (!fs.existsSync(SAVE_DIR)) {
+  fs.mkdirSync(SAVE_DIR, { recursive: true });
+  console.log("Created save directory:", SAVE_DIR);
+}
 
 // Download ROM from URL if not present locally
 async function ensureRomExists(): Promise<void> {
@@ -471,15 +479,21 @@ async function main() {
   console.log(`Streaming at ${STREAM_FPS} FPS\n`);
 
   // Handle graceful shutdown
-  process.on("SIGINT", () => {
-    console.log("\nShutting down...");
+  // Graceful shutdown handler (SIGINT for local, SIGTERM for Railway/Docker)
+  const shutdown = (signal: string) => {
+    console.log(`\n${signal} received, shutting down...`);
+    console.log("Saving game state...");
     emulator.saveState();
+    console.log("Game saved successfully");
     emulator.stop();
     if (ws) ws.close();
     if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
     httpServer.close();
     process.exit(0);
-  });
+  };
+
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
 }
 
 main().catch((err) => {

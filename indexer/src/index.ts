@@ -120,12 +120,17 @@ async function main() {
   // Ensure ROM exists (download if needed)
   try {
     await ensureRomExists();
+    // Verify ROM exists after download
+    if (!fs.existsSync(ROM_PATH)) {
+      throw new Error(`ROM still not found after download: ${ROM_PATH}`);
+    }
+    console.log("ROM verified at:", ROM_PATH);
   } catch (err) {
     console.error("Failed to get ROM:", err);
     process.exit(1);
   }
 
-  // Initialize GameBoy emulator
+  // Initialize GameBoy emulator (ROM must exist before this point)
   const emulator = new GameBoyEmulator(ROM_PATH, SAVE_PATH);
   try {
     await emulator.init();

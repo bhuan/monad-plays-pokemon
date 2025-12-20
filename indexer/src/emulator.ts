@@ -42,31 +42,37 @@ export class GameBoyEmulator {
   }
 
   async init(): Promise<void> {
-    console.log("Loading ROM:", this.romPath);
-
+    // Step 1: Verify ROM exists
+    console.log("Checking ROM:", this.romPath);
     if (!fs.existsSync(this.romPath)) {
       throw new Error(`ROM file not found: ${this.romPath}`);
     }
 
+    // Step 2: Load ROM data
+    console.log("Loading ROM into memory...");
     this.romData = fs.readFileSync(this.romPath);
+    console.log(`ROM loaded: ${this.romData.length} bytes`);
 
-    // Load save data if exists
+    // Step 3: Initialize emulator with ROM first
+    this.gameboy = new Gameboy();
+
+    // Step 4: Load save data if exists (only after ROM is ready)
     let saveData: number[] | undefined;
     if (fs.existsSync(this.savePath)) {
       try {
         const saveBuffer = fs.readFileSync(this.savePath);
         saveData = Array.from(saveBuffer);
-        console.log("Loaded save data from:", this.savePath);
+        console.log(`Save data loaded: ${saveBuffer.length} bytes from ${this.savePath}`);
       } catch (err) {
         console.error("Failed to load save data:", err);
       }
+    } else {
+      console.log("No existing save file found, starting fresh");
     }
 
-    // Initialize serverboy
-    this.gameboy = new Gameboy();
+    // Step 5: Load ROM (with save data if available)
     this.gameboy.loadRom(this.romData, saveData);
-
-    console.log("GameBoy emulator initialized");
+    console.log("GameBoy emulator initialized" + (saveData ? " with save data" : ""));
   }
 
   setFrameCallback(callback: (frame: Buffer) => void): void {

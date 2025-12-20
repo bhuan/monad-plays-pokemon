@@ -101,10 +101,22 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
           args: [action],
         });
 
+        // Use calls format with gas overrides to reduce bundler gas waste
+        // Actual usage: callGas ~14.5k, verification ~102k, preVerification varies
+        // Adding 25% buffer over observed usage
         const txHash = await smartWalletClient.sendTransaction(
           {
-            to: CONTRACT_ADDRESS as `0x${string}`,
-            data,
+            calls: [{
+              to: CONTRACT_ADDRESS as `0x${string}`,
+              data,
+            }],
+            // Gas overrides - minimal thresholds based on actual usage
+            callGasLimit: 15000n,           // Actual: ~14,500
+            verificationGasLimit: 130000n,  // Actual: ~102,000 + 27% buffer
+            preVerificationGas: 165000n,    // Required: ~164k
+            // Gas price overrides (bundler minimums: 152.5 gwei fee, 2.5 gwei priority)
+            maxFeePerGas: 155000000000n,         // 155 gwei
+            maxPriorityFeePerGas: 2500000000n,   // 2.5 gwei tip
           },
           {
             uiOptions: {

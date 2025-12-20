@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useSendTransaction, useWallets } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { encodeFunctionData } from "viem";
 import {
@@ -22,9 +23,9 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
   const [isVoting, setIsVoting] = useState(false);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Privy hooks for embedded wallet
-  const { sendTransaction: privySendTransaction } = useSendTransaction();
+  // Privy hooks for embedded wallet and smart wallet
   const { wallets } = useWallets();
+  const { client: smartWalletClient } = useSmartWallets();
 
   // Wagmi hooks for external wallets (MetaMask, etc.)
   const {
@@ -92,15 +93,15 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
     setIsVoting(true);
 
     try {
-      if (hasEmbeddedWallet) {
-        // Use Privy's sendTransaction for embedded wallets (auto-approve, no popup)
+      if (smartWalletClient) {
+        // Use smart wallet with paymaster (gas sponsored)
         const data = encodeFunctionData({
           abi: CONTRACT_ABI,
           functionName: "vote",
           args: [action],
         });
 
-        const txReceipt = await privySendTransaction(
+        const txHash = await smartWalletClient.sendTransaction(
           {
             to: CONTRACT_ADDRESS as `0x${string}`,
             data,
@@ -112,8 +113,13 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
           }
         );
 
-        console.log("Vote tx sent (Privy):", txReceipt.hash);
+        console.log("Vote tx sent (Smart Wallet, sponsored):", txHash);
         setLastVote(action);
+        setPendingAction(null);
+        setIsVoting(false);
+      } else if (hasEmbeddedWallet) {
+        // Fallback: embedded wallet without smart wallet (user pays gas)
+        setError("Smart wallet not ready. Please wait or refresh.");
         setPendingAction(null);
         setIsVoting(false);
       } else {

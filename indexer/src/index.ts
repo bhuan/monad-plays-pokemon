@@ -389,6 +389,9 @@ async function main() {
   connectWebSocket();
 
   // Poll for events via HTTP RPC
+  // Monad limits eth_getLogs to 100 blocks per query
+  const MAX_BLOCK_RANGE = 100;
+
   async function pollForEvents(): Promise<void> {
     try {
       // Get the latest block number
@@ -396,9 +399,15 @@ async function main() {
 
       // Determine the range to query
       // Start from the last polled block (or a recent window if first poll)
-      const fromBlock = lastPolledBlock > 0
+      let fromBlock = lastPolledBlock > 0
         ? lastPolledBlock + 1
         : Math.max(0, latestBlock - config.windowSize * 2);
+
+      // If we're too far behind, skip ahead to recent blocks
+      if (latestBlock - fromBlock > MAX_BLOCK_RANGE * 10) {
+        console.log(`[poll] Too far behind (${latestBlock - fromBlock} blocks), skipping to recent`);
+        fromBlock = latestBlock - MAX_BLOCK_RANGE;
+      }
 
       if (fromBlock > latestBlock) {
         // No new blocks to poll
@@ -411,9 +420,12 @@ async function main() {
         return;
       }
 
+      // Limit range to MAX_BLOCK_RANGE (Monad RPC limit)
+      const toBlock = Math.min(latestBlock, fromBlock + MAX_BLOCK_RANGE - 1);
+
       // Query VoteCast events from the contract
       const filter = httpContract.filters.VoteCast();
-      const events = await httpContract.queryFilter(filter, fromBlock, latestBlock);
+      const events = await httpContract.queryFilter(filter, fromBlock, toBlock);
 
       let newEventsCount = 0;
       for (const event of events) {
@@ -430,13 +442,13 @@ async function main() {
       }
 
       if (newEventsCount > 0) {
-        console.log(`[poll] Found ${newEventsCount} new events from blocks ${fromBlock}-${latestBlock}`);
+        console.log(`[poll] Found ${newEventsCount} new events from blocks ${fromBlock}-${toBlock}`);
       }
 
-      // Update last polled block
-      lastPolledBlock = latestBlock;
+      // Update last polled block to what we actually queried
+      lastPolledBlock = toBlock;
 
-      // Use the polled block to trigger window finalization
+      // Use the latest block to trigger window finalization
       // This is the reliable source for knowing when windows end
       aggregator.onBlock(latestBlock);
 

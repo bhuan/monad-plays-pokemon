@@ -37,7 +37,7 @@ createRoot(document.getElementById("root")!).render(
         },
         defaultChain: monadTestnet,
         supportedChains: [monadTestnet],
-        loginMethods: ["email", "wallet", "google", "twitter", "discord"],
+        loginMethods: ["email", "google", "twitter", "discord"],
       }}
     >
       <SmartWalletsProvider>

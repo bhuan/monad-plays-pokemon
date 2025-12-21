@@ -1,4 +1,5 @@
 import { http } from "wagmi";
+import { injected } from "wagmi/connectors";
 import { createConfig } from "@privy-io/wagmi";
 import { defineChain } from "viem";
 
@@ -26,10 +27,11 @@ export const monadTestnet = defineChain({
   testnet: true,
 });
 
-// Create wagmi config - Privy handles wallet connections
-// Cast needed due to viem version mismatch between packages
+// Create wagmi config with direct wallet connectors
+// Privy handles embedded wallets, these connectors handle direct EOA connections
 export const wagmiConfig = createConfig({
   chains: [monadTestnet] as const,
+  connectors: [injected()],
   transports: {
     [monadTestnet.id]: http("https://testnet-rpc.monad.xyz"),
   },

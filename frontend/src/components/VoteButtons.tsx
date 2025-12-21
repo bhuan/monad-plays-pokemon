@@ -12,11 +12,14 @@ import {
 } from "../config/wagmi";
 import "./VoteButtons.css";
 
+type AuthMode = "privy" | "direct" | null;
+
 interface VoteButtonsProps {
   disabled?: boolean;
+  authMode?: AuthMode;
 }
 
-export function VoteButtons({ disabled }: VoteButtonsProps) {
+export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [lastVote, setLastVote] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +96,7 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
     setIsVoting(true);
 
     try {
-      if (smartWalletClient) {
+      if (authMode === "privy" && smartWalletClient) {
         // Use smart wallet with paymaster (gas sponsored)
         const data = encodeFunctionData({
           abi: CONTRACT_ABI,
@@ -135,15 +138,14 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
         setLastVote(action);
         setPendingAction(null);
         setIsVoting(false);
-      } else if (hasEmbeddedWallet) {
-        // Fallback: embedded wallet without smart wallet (user pays gas)
+      } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
+        // Privy user but smart wallet not ready yet
         setError("Smart wallet not ready. Please wait or refresh.");
         setPendingAction(null);
         setIsVoting(false);
-      } else {
-        // Use wagmi's writeContract for external wallets (MetaMask, etc.)
-        // This will show the wallet's native approval popup
-        // Don't clear pending state here - let the useEffect handle it when tx completes
+      } else if (authMode === "direct") {
+        // Direct wallet connection (EOA) - user pays gas
+        // Use wagmi's writeContract - shows wallet's native approval popup
         writeContract({
           address: CONTRACT_ADDRESS as `0x${string}`,
           abi: CONTRACT_ABI,
@@ -151,6 +153,10 @@ export function VoteButtons({ disabled }: VoteButtonsProps) {
           args: [action],
         });
         // Note: success/error is handled in useEffect watching isSuccess/writeError
+      } else {
+        setError("No wallet connected");
+        setPendingAction(null);
+        setIsVoting(false);
       }
     } catch (err: any) {
       console.error("Vote failed:", err);

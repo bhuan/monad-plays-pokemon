@@ -86,8 +86,8 @@ async function ensureRomExists(): Promise<void> {
   });
 }
 
-// Auto-save interval (every 15 seconds to minimize data loss on redeploy)
-const AUTO_SAVE_INTERVAL = 15000;
+// Auto-save interval (every 60 seconds)
+const AUTO_SAVE_INTERVAL = 60000;
 
 // Startup delay to allow old container to save before we read (Railway race condition)
 const STARTUP_SAVE_DELAY = 5000;

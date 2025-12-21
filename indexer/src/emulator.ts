@@ -21,6 +21,13 @@ const BUTTON_MAP: Record<string, number> = {
   START: Gameboy.KEYMAP.START,
 };
 
+// Helper to access serverboy's internal gameboy core (for full save state support)
+function getInternalGameboy(gameboyInterface: any): any {
+  const privateKey = Object.keys(gameboyInterface).find((k) => k.startsWith("_"));
+  if (!privateKey) return null;
+  return gameboyInterface[privateKey]?.gameboy;
+}
+
 export class GameBoyEmulator {
   private gameboy: any = null;
   private romPath: string;
@@ -56,31 +63,47 @@ export class GameBoyEmulator {
     // Step 3: Initialize emulator with ROM first
     this.gameboy = new Gameboy();
 
-    // Step 4: Load save data if exists (only after ROM is ready)
-    let saveData: number[] | undefined;
-    if (fs.existsSync(this.savePath)) {
+    // Step 4: Check for full save state first, then fall back to SRAM-only
+    const fullStatePath = this.savePath.replace(/\.sav$/, ".state");
+    let loadedFullState = false;
+
+    // Step 5: Load ROM first (required before loading full state)
+    this.gameboy.loadRom(this.romData);
+    console.log("GameBoy emulator initialized");
+
+    // Step 6: Try to load full save state
+    if (fs.existsSync(fullStatePath)) {
       try {
-        const saveBuffer = fs.readFileSync(this.savePath);
-        saveData = Array.from(saveBuffer);
-        // Debug: Check if save has meaningful data (not all zeros)
-        const nonZeroBytes = saveData.filter(b => b !== 0).length;
-        const checksum = saveData.slice(0, 100).reduce((a, b) => a + b, 0);
-        console.log(`Save data loaded: ${saveBuffer.length} bytes from ${this.savePath}`);
-        console.log(`  Non-zero bytes: ${nonZeroBytes} (${(nonZeroBytes/saveData.length*100).toFixed(1)}%)`);
-        console.log(`  First 100 bytes checksum: ${checksum}`);
-        if (nonZeroBytes < 100) {
-          console.log("  WARNING: Save appears to be empty/fresh!");
+        const stateJson = fs.readFileSync(fullStatePath, "utf-8");
+        const fullState = JSON.parse(stateJson);
+        const innerGameboy = getInternalGameboy(this.gameboy);
+        if (innerGameboy && typeof innerGameboy.saving === "function") {
+          innerGameboy.saving(fullState);
+          loadedFullState = true;
+          console.log(`Full save state loaded from ${fullStatePath}`);
         }
       } catch (err) {
-        console.error("Failed to load save data:", err);
+        console.error("Failed to load full save state:", err);
       }
-    } else {
-      console.log("No existing save file found, starting fresh");
     }
 
-    // Step 5: Load ROM (with save data if available)
-    this.gameboy.loadRom(this.romData, saveData);
-    console.log("GameBoy emulator initialized" + (saveData ? " with save data" : ""));
+    // Step 7: Fall back to SRAM-only save if no full state
+    if (!loadedFullState && fs.existsSync(this.savePath)) {
+      try {
+        const saveBuffer = fs.readFileSync(this.savePath);
+        const saveData = Array.from(saveBuffer);
+        console.log(`Falling back to SRAM save: ${saveBuffer.length} bytes from ${this.savePath}`);
+        // Re-load ROM with SRAM data
+        this.gameboy.loadRom(this.romData, saveData);
+        console.log("GameBoy emulator re-initialized with SRAM data");
+      } catch (err) {
+        console.error("Failed to load SRAM save data:", err);
+      }
+    }
+
+    if (!loadedFullState) {
+      console.log("Starting fresh or with SRAM-only save");
+    }
   }
 
   setFrameCallback(callback: (frame: Buffer) => void): void {
@@ -191,17 +214,22 @@ export class GameBoyEmulator {
     if (!this.gameboy) return;
 
     try {
+      // Get the internal gameboy core to access full save state
+      const innerGameboy = getInternalGameboy(this.gameboy);
+      if (innerGameboy && typeof innerGameboy.saveState === "function") {
+        // Full save state - includes CPU, memory, graphics, audio state
+        const fullState = innerGameboy.saveState();
+        const fullStatePath = this.savePath.replace(/\.sav$/, ".state");
+        const stateJson = JSON.stringify(fullState);
+        fs.writeFileSync(fullStatePath, stateJson);
+        console.log(`Full state saved to: ${fullStatePath} (${(stateJson.length / 1024).toFixed(1)} KB)`);
+      }
+
+      // Also save SRAM for backward compatibility
       const saveData = this.gameboy.getSaveData();
       if (saveData && saveData.length > 0) {
-        // Debug: Check if save has meaningful data
-        const nonZeroBytes = saveData.filter((b: number) => b !== 0).length;
-        const checksum = saveData.slice(0, 100).reduce((a: number, b: number) => a + b, 0);
         fs.writeFileSync(this.savePath, Buffer.from(saveData));
-        console.log(`Game saved to: ${this.savePath}`);
-        console.log(`  Size: ${saveData.length} bytes, non-zero: ${nonZeroBytes} (${(nonZeroBytes/saveData.length*100).toFixed(1)}%)`);
-        console.log(`  First 100 bytes checksum: ${checksum}`);
-      } else {
-        console.log("No save data to write (SRAM empty)");
+        console.log(`SRAM backup saved to: ${this.savePath}`);
       }
     } catch (err) {
       console.error("Failed to save:", err);

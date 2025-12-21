@@ -95,16 +95,19 @@ export class VoteAggregator {
       }
     }
 
-    // Find winning action (most votes, ties broken by first in enum order)
-    let winningAction: Action = "UP";
+    // Find winning action (most votes, ties broken randomly)
     let maxVotes = 0;
-
     for (const action of Actions) {
       if (voteCounts[action] > maxVotes) {
         maxVotes = voteCounts[action];
-        winningAction = action;
       }
     }
+
+    // Collect all actions with max votes (for tie-breaking)
+    const tiedActions = Actions.filter((action) => voteCounts[action] === maxVotes);
+
+    // Random selection among tied actions
+    const winningAction = tiedActions[Math.floor(Math.random() * tiedActions.length)];
 
     const result: WindowResult = {
       windowId,

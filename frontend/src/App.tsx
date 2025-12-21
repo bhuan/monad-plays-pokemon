@@ -280,8 +280,21 @@ function App() {
                         <span className="winning-action">
                           {result.winningAction}
                         </span>
-                        <span className="vote-count">
-                          ({result.totalVotes} votes)
+                        <span className="vote-breakdown">
+                          {Object.entries(result.votes)
+                            .filter(([, count]) => count > 0)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([action, count]) => (
+                              <span
+                                key={action}
+                                className={`vote-item ${action === result.winningAction ? 'winner' : ''}`}
+                              >
+                                {action}:{count}
+                              </span>
+                            ))}
+                        </span>
+                        <span className="vote-total">
+                          ({result.totalVotes} total)
                         </span>
                       </li>
                     ))}

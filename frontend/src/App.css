@@ -353,9 +353,27 @@ body {
   flex: 1;
 }
 
-.vote-count {
+.vote-breakdown {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.vote-item {
+  color: #888;
+  font-size: 0.7rem;
+  font-family: monospace;
+}
+
+.vote-item.winner {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.vote-total {
   color: #666;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  margin-left: auto;
 }
 
 .no-history {

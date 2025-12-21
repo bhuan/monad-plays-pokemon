@@ -14,9 +14,6 @@ body {
   max-width: 900px;
   margin: 0 auto;
   padding: 1rem;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Header */
@@ -85,6 +82,74 @@ body {
 .connect-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Dual login options */
+.login-options {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.login-divider {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.wallet-note {
+  color: #888;
+  font-size: 0.7rem;
+  margin: 0.5rem 0 0;
+  font-style: italic;
+}
+
+.wallet-connectors {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.no-wallets {
+  color: #666;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.wallet-btn {
+  background: #2a2a4a;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.wallet-btn:hover:not(:disabled) {
+  background: #3a3a5a;
+  box-shadow: none;
+}
+
+.privy-btn {
+  font-size: 0.85rem;
+}
+
+/* Auth badge */
+.auth-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auth-badge[data-mode="privy"] {
+  background: #27ae60;
+  color: white;
+}
+
+.auth-badge[data-mode="direct"] {
+  background: #f39c12;
+  color: white;
 }
 
 .disconnect-btn {
@@ -158,9 +223,16 @@ body {
 /* Main layout */
 .main {
   display: flex;
-  gap: 2rem;
-  flex: 1;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.game-row {
+  display: flex;
+  gap: 1.5rem;
   justify-content: center;
+  align-items: flex-start;
   flex-wrap: wrap;
 }
 
@@ -168,10 +240,57 @@ body {
   flex-shrink: 0;
 }
 
+.controls-chat-row {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
 .controls-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+.your-wallet {
+  color: #667eea;
+  font-size: 0.75rem;
+  margin: 0;
+  font-family: monospace;
+  text-align: center;
+}
+
+.history-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 500px;
+}
+
+.history-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #1a1a2e;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  color: #888;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.history-toggle:hover {
+  background: #252540;
+  color: #aaa;
+}
+
+.toggle-icon {
+  font-size: 0.65rem;
 }
 
 /* Vote history */
@@ -179,7 +298,7 @@ body {
   background: #1a1a2e;
   border-radius: 12px;
   padding: 1rem;
-  min-width: 200px;
+  width: 100%;
 }
 
 .vote-history h4 {
@@ -246,11 +365,12 @@ body {
   font-style: italic;
 }
 
+
 /* Footer */
 .footer {
   text-align: center;
   padding: 1rem 0;
-  margin-top: auto;
+  margin-top: 1.5rem;
   border-top: 1px solid #333;
   color: #666;
   font-size: 0.8rem;
@@ -280,14 +400,24 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 700px) {
-  .main {
+@media (max-width: 900px) {
+  .game-row {
     flex-direction: column;
+    align-items: center;
+  }
+
+  .controls-chat-row {
+    flex-direction: column;
+    width: 100%;
+    max-width: 350px;
     align-items: center;
   }
 
   .controls-container {
     width: 100%;
+  }
+
+  .history-section {
     max-width: 350px;
   }
 }

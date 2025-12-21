@@ -1,29 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import type { WindowResult, ScreenInfo } from "../hooks/useSocket";
+import type { ScreenInfo } from "../hooks/useSocket";
 import "./GameScreen.css";
 
 interface GameScreenProps {
-  lastResult: WindowResult | null;
   isConnected: boolean;
   screenInfo: ScreenInfo;
   viewerCount: number;
   setFrameCallback: (callback: (frame: ArrayBuffer) => void) => void;
 }
 
-interface MoveEntry {
-  action: string;
-  txHash: string | null;
-}
-
 export function GameScreen({
-  lastResult,
   isConnected,
   screenInfo,
   viewerCount,
   setFrameCallback
 }: GameScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [moveHistory, setMoveHistory] = useState<MoveEntry[]>([]);
   const [fps, setFps] = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(Date.now());
@@ -69,16 +61,6 @@ export function GameScreen({
 
   }, [screenInfo, setFrameCallback]);
 
-  // Track move history
-  useEffect(() => {
-    if (lastResult?.winningAction) {
-      setMoveHistory((prev) => [...prev.slice(-9), {
-        action: lastResult.winningAction,
-        txHash: lastResult.winningTxHash,
-      }]);
-    }
-  }, [lastResult]);
-
   return (
     <div className="game-screen">
       <div className="screen-bezel">
@@ -103,65 +85,7 @@ export function GameScreen({
         <span className="rom-status">Pokemon Red</span>
       </div>
 
-      {lastResult && (
-        <div className="window-info">
-          <span className="block-range">
-            Blocks{" "}
-            <a
-              href={`https://testnet.monadvision.com/block/${lastResult.startBlock}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {lastResult.startBlock}
-            </a>
-            -
-            <a
-              href={`https://testnet.monadvision.com/block/${lastResult.endBlock}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {lastResult.endBlock}
-            </a>
-          </span>
-          <span>Votes: {lastResult.totalVotes}</span>
-        </div>
-      )}
 
-      {moveHistory.length > 0 && (
-        <div className="move-history">
-          <span>Last: {moveHistory[moveHistory.length - 1].txHash ? (
-            <a
-              href={`https://testnet.monadvision.com/tx/${moveHistory[moveHistory.length - 1].txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="move-link"
-            >
-              <strong>{moveHistory[moveHistory.length - 1].action}</strong>
-            </a>
-          ) : (
-            <strong>{moveHistory[moveHistory.length - 1].action}</strong>
-          )}</span>
-          <span className="history-trail">
-            {moveHistory.slice(-5).map((move, i, arr) => (
-              <span key={i}>
-                {move.txHash ? (
-                  <a
-                    href={`https://testnet.monadvision.com/tx/${move.txHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="move-link"
-                  >
-                    {move.action}
-                  </a>
-                ) : (
-                  move.action
-                )}
-                {i < arr.length - 1 && " → "}
-              </span>
-            ))}
-          </span>
-        </div>
-      )}
 
       <div className="shared-state-notice">
         All players see the same game - votes affect the shared state!

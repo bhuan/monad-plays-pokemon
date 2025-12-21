@@ -291,8 +291,18 @@ async function main() {
 
     seenEvents.add(eventKey);
     aggregator.addVote(player, action, blockNumber, txHash);
+
+    // Emit individual vote event to connected clients
+    const actionName = Actions[action];
+    io.emit("vote", {
+      player,
+      action: actionName,
+      blockNumber,
+      txHash,
+    });
+
     console.log(
-      `[${source}] Vote: ${player.slice(0, 8)}... voted ${Actions[action]} in block ${blockNumber}`
+      `[${source}] Vote: ${player.slice(0, 8)}... voted ${actionName} in block ${blockNumber}`
     );
     return true;
   }

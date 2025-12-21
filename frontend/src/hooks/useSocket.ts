@@ -11,6 +11,13 @@ export interface WindowResult {
   totalVotes: number;
 }
 
+export interface Vote {
+  player: string;
+  action: string;
+  blockNumber: number;
+  txHash: string;
+}
+
 export interface ScreenInfo {
   width: number;
   height: number;
@@ -37,6 +44,7 @@ export function useSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [lastResult, setLastResult] = useState<WindowResult | null>(null);
   const [resultHistory, setResultHistory] = useState<WindowResult[]>([]);
+  const [recentVotes, setRecentVotes] = useState<Vote[]>([]);
   const [screenInfo, setScreenInfo] = useState<ScreenInfo>({ width: 160, height: 144 });
   const [viewerCount, setViewerCount] = useState(0);
   const frameCallbackRef = useRef<((frame: ArrayBuffer) => void) | null>(null);
@@ -44,8 +52,9 @@ export function useSocket() {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Socket.io for windowResult events
-    const newSocket = INDEXER_URL ? io(INDEXER_URL) : io();
+    // Socket.io for windowResult events (use polling only to avoid WebSocket upgrade errors)
+    const socketOptions = { transports: ["polling"] as ("polling")[] };
+    const newSocket = INDEXER_URL ? io(INDEXER_URL, socketOptions) : io(socketOptions);
     socketRef.current = newSocket;
 
     newSocket.on("connect", () => {
@@ -65,6 +74,11 @@ export function useSocket() {
       console.log("[Socket.io] Window result:", result);
       setLastResult(result);
       setResultHistory((prev) => [...prev.slice(-19), result]);
+    });
+
+    newSocket.on("vote", (vote: Vote) => {
+      console.log("[Socket.io] Vote:", vote);
+      setRecentVotes((prev) => [...prev.slice(-49), vote]); // Keep last 50 votes
     });
 
     // Raw WebSocket for high-performance frame streaming
@@ -132,6 +146,7 @@ export function useSocket() {
     isConnected,
     lastResult,
     resultHistory,
+    recentVotes,
     screenInfo,
     viewerCount,
     setFrameCallback,

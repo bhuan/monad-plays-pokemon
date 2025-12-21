@@ -1,0 +1,138 @@
+.vote-chat {
+  background: #18181b;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 320px;
+  width: 280px;
+  overflow: hidden;
+  border: 1px solid #2a2a3e;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.8rem;
+  background: #1f1f23;
+  border-bottom: 1px solid #2a2a3e;
+}
+
+.chat-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #efeff1;
+}
+
+.chat-count {
+  font-size: 0.7rem;
+  color: #666;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  scroll-behavior: smooth;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: #1f1f23;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: #3a3a4a;
+  border-radius: 3px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: #4a4a5a;
+}
+
+.chat-empty {
+  color: #666;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 2rem 1rem;
+  font-style: italic;
+}
+
+.chat-message {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 0.2rem 0.3rem;
+  border-radius: 4px;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chat-message.user-message {
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.message-block {
+  color: #555;
+  font-family: monospace;
+  font-size: 0.65rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  min-width: 48px;
+}
+
+.message-block:hover {
+  color: #888;
+  text-decoration: underline;
+}
+
+.message-username {
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.message-username:hover {
+  text-decoration: underline;
+}
+
+.message-action {
+  color: #efeff1;
+  margin-left: auto;
+  background: #2a2a4a;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .vote-chat {
+    width: 100%;
+    max-width: 350px;
+    height: 280px;
+  }
+}

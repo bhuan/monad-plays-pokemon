@@ -5,7 +5,6 @@ import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { encodeFunctionData } from "viem";
 import {
   Action,
-  ACTION_LABELS,
   CONTRACT_ADDRESS,
   CONTRACT_ABI,
   type ActionType,
@@ -21,7 +20,6 @@ interface VoteButtonsProps {
 
 export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
-  const [lastVote, setLastVote] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,7 +59,6 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   useEffect(() => {
     if (isSuccess && pendingAction !== null) {
       console.log("Vote tx confirmed (wagmi):", txHash);
-      setLastVote(pendingAction);
       setPendingAction(null);
       setIsVoting(false);
       reset();
@@ -135,7 +132,6 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
         );
 
         console.log("Vote tx sent (Smart Wallet, sponsored):", txHash);
-        setLastVote(action);
         setPendingAction(null);
         setIsVoting(false);
       } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
@@ -264,10 +260,6 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           {getButtonText(Action.START, "START")}
         </button>
       </div>
-
-      {lastVote !== null && (
-        <p className="last-vote">Last vote: {ACTION_LABELS[lastVote]}</p>
-      )}
 
       {error && <p className="error">{error}</p>}
 

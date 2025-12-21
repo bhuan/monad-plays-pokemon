@@ -147,7 +147,7 @@ function App() {
   const [copied, setCopied] = useState(false);
 
   // Toggle for Recent Winning Moves
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
 
   const copyAddress = useCallback(() => {
     if (displayAddress) {

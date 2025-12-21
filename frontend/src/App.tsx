@@ -307,8 +307,8 @@ function App() {
 
       <footer className="footer">
         <p>
-          Vote using blockchain transactions. Every 5 blocks, the most popular
-          action is executed on the shared game. Ties are broken randomly.
+          All players see the same game state and vote on Monad Testnet for the next action.
+          Every 5 blocks, the most popular action is executed on the shared game. Ties are broken randomly.
         </p>
         <p className="inspiration">
           Inspired by{" "}

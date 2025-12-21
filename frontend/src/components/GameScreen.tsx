@@ -84,12 +84,6 @@ export function GameScreen({
         )}
         <span className="rom-status">Pokemon Red</span>
       </div>
-
-
-
-      <div className="shared-state-notice">
-        All players see the same game - votes affect the shared state!
-      </div>
     </div>
   );
 }

@@ -36,3 +36,4 @@ contracts/out/
 # Deploy scripts with private keys
 deploy-create2.js
 **/deploy-create2.js
+indexer/saves/

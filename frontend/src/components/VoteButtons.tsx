@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useWriteContract } from "wagmi";
 import { encodeFunctionData } from "viem";
 import {
   Action,
@@ -37,9 +37,11 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     reset,
   } = useWriteContract();
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  // Note: We intentionally don't use useWaitForTransactionReceipt here.
+  // Instead of waiting for on-chain confirmation (~3-5s), we use optimistic UI:
+  // - Buttons re-enable immediately after tx broadcast (~200ms)
+  // - Vote appears in VoteChat via indexer's proposed state subscription (~400ms-1s)
+  // This leverages Monad's monadNewHeads with "Proposed" state for fast feedback.
 
   // Check if user has an embedded wallet
   const hasEmbeddedWallet = wallets.some((w) => w.walletClientType === "privy");
@@ -55,15 +57,17 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     };
   }, [error]);
 
-  // Handle wagmi transaction success (for external wallets)
+  // Handle wagmi transaction broadcast (for external wallets)
+  // Optimistic UI: Enable buttons as soon as tx is broadcast, don't wait for confirmation
   useEffect(() => {
-    if (isSuccess && pendingAction !== null) {
-      console.log("Vote tx confirmed (wagmi):", txHash);
+    if (txHash && pendingAction !== null) {
+      console.log("Vote tx broadcast (wagmi):", txHash);
+      console.log("Buttons re-enabled. Vote will appear in chat via proposed state (~400ms-1s)");
       setPendingAction(null);
       setIsVoting(false);
       reset();
     }
-  }, [isSuccess, txHash, pendingAction, reset]);
+  }, [txHash, pendingAction, reset]);
 
   // Handle wagmi write errors (for external wallets)
   useEffect(() => {
@@ -116,7 +120,9 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
             }
           : {};
 
-        const txHash = await smartWalletClient.sendTransaction(
+        // Fire-and-forget: Start transaction but don't await confirmation
+        // This enables optimistic UI - buttons re-enable immediately
+        smartWalletClient.sendTransaction(
           {
             calls: [{
               to: CONTRACT_ADDRESS as `0x${string}`,
@@ -129,11 +135,32 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
               showWalletUIs: false, // Disable confirmation popup
             },
           }
-        );
+        )
+          .then((txHash) => {
+            console.log("Vote tx confirmed (Smart Wallet, sponsored):", txHash);
+          })
+          .catch((err: any) => {
+            console.error("Vote failed (Smart Wallet):", err);
+            const errMsg = err?.message || "Vote failed";
+            if (
+              errMsg.includes("rejected") ||
+              errMsg.includes("denied") ||
+              errMsg.includes("cancelled")
+            ) {
+              setError("Transaction cancelled");
+            } else {
+              setError(errMsg.slice(0, 100));
+            }
+          });
 
-        console.log("Vote tx sent (Smart Wallet, sponsored):", txHash);
-        setPendingAction(null);
-        setIsVoting(false);
+        // Optimistic UI: Enable buttons after short cooldown to prevent nonce collisions
+        // 1 second is enough for bundler to process the UserOp
+        console.log("Vote submitted to bundler, buttons re-enabled in 1s (optimistic)");
+        console.log("Vote will appear in chat via proposed state (~400ms-1s)");
+        setTimeout(() => {
+          setPendingAction(null);
+          setIsVoting(false);
+        }, 1000);
       } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
         // Privy user but smart wallet not ready yet
         setError("Smart wallet not ready. Please wait or refresh.");
@@ -171,10 +198,10 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     }
   };
 
-  const isDisabled = disabled || isVoting || isWriting || isConfirming;
+  const isDisabled = disabled || isVoting || isWriting;
 
   const getButtonText = (action: ActionType, label: string) => {
-    if (pendingAction === action && (isVoting || isWriting || isConfirming)) {
+    if (pendingAction === action && (isVoting || isWriting)) {
       return "...";
     }
     return label;
@@ -191,7 +218,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           onClick={() => vote(Action.UP)}
           disabled={isDisabled}
         >
-          {pendingAction === Action.UP && (isVoting || isWriting || isConfirming)
+          {pendingAction === Action.UP && (isVoting || isWriting)
             ? <span className="loading">...</span>
             : <span className="arrow" />}
         </button>
@@ -200,7 +227,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           onClick={() => vote(Action.LEFT)}
           disabled={isDisabled}
         >
-          {pendingAction === Action.LEFT && (isVoting || isWriting || isConfirming)
+          {pendingAction === Action.LEFT && (isVoting || isWriting)
             ? <span className="loading">...</span>
             : <span className="arrow" />}
         </button>
@@ -210,7 +237,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           onClick={() => vote(Action.RIGHT)}
           disabled={isDisabled}
         >
-          {pendingAction === Action.RIGHT && (isVoting || isWriting || isConfirming)
+          {pendingAction === Action.RIGHT && (isVoting || isWriting)
             ? <span className="loading">...</span>
             : <span className="arrow" />}
         </button>
@@ -219,7 +246,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           onClick={() => vote(Action.DOWN)}
           disabled={isDisabled}
         >
-          {pendingAction === Action.DOWN && (isVoting || isWriting || isConfirming)
+          {pendingAction === Action.DOWN && (isVoting || isWriting)
             ? <span className="loading">...</span>
             : <span className="arrow" />}
         </button>

@@ -95,6 +95,44 @@ const STARTUP_SAVE_DELAY = 5000;
 // Frame streaming rate (FPS) - targeting native GameBoy rate (~60 FPS)
 const STREAM_FPS = 60;
 
+// ============================================================================
+// In-Memory Cache Configuration
+// ============================================================================
+const MAX_CACHED_VOTES = parseInt(process.env.MAX_CACHED_VOTES || "100");
+const MAX_CACHED_ACTIONS = parseInt(process.env.MAX_CACHED_ACTIONS || "50");
+
+// Types for cached data
+interface CachedVote {
+  player: string;
+  action: string;
+  blockNumber: number;
+  txHash: string;
+  timestamp: number;
+}
+
+interface CachedAction {
+  windowId: number;
+  startBlock: number;
+  endBlock: number;
+  winningAction: string;
+  winningTxHash: string | null;
+  votes: Record<string, number>;
+  totalVotes: number;
+  timestamp: number;
+}
+
+// Circular buffers for recent history
+const recentVotes: CachedVote[] = [];
+const recentActions: CachedAction[] = [];
+
+// Helper to add item to circular buffer
+function addToCircularBuffer<T>(buffer: T[], item: T, maxSize: number): void {
+  buffer.push(item);
+  if (buffer.length > maxSize) {
+    buffer.shift();
+  }
+}
+
 // Track seen events to deduplicate between WebSocket and polling
 const seenEvents = new Set<string>();
 
@@ -114,6 +152,7 @@ async function main() {
   console.log(`WebSocket RPC: ${config.rpcUrl}`);
   console.log(`HTTP RPC: ${config.httpRpcUrl}`);
   console.log(`Poll interval: ${config.windowSize * config.blockTimeMs}ms`);
+  console.log(`Cache: ${MAX_CACHED_VOTES} votes, ${MAX_CACHED_ACTIONS} actions`);
 
   if (!config.contractAddress) {
     console.error("ERROR: CONTRACT_ADDRESS not set in environment");
@@ -235,10 +274,17 @@ async function main() {
     }
   });
 
-  // Socket.io for other events (windowResult, screenInfo)
+  // Socket.io for other events (windowResult, screenInfo, recentHistory)
   io.on("connection", (socket) => {
     console.log(`[Socket.io] Client connected: ${socket.id}`);
     socket.emit("screenInfo", emulator.getScreenDimensions());
+
+    // Send cached recent history immediately for instant hydration
+    socket.emit("recentHistory", {
+      votes: recentVotes,
+      actions: recentActions,
+    });
+    console.log(`[Socket.io] Sent ${recentVotes.length} votes, ${recentActions.length} actions to ${socket.id}`);
 
     socket.on("disconnect", () => {
       console.log(`[Socket.io] Client disconnected: ${socket.id}`);
@@ -261,6 +307,14 @@ async function main() {
 
   // Set up vote aggregator - execute winning move on emulator
   const aggregator = new VoteAggregator(config.windowSize, (result) => {
+    // Cache the action with timestamp
+    const cachedAction: CachedAction = {
+      ...result,
+      timestamp: Date.now(),
+    };
+    addToCircularBuffer(recentActions, cachedAction, MAX_CACHED_ACTIONS);
+
+    // Broadcast to all clients
     io.emit("windowResult", result);
     console.log(`Window ${result.windowId}: ${result.winningAction} wins!`);
     emulator.pressButton(result.winningAction, 5);
@@ -294,12 +348,19 @@ async function main() {
 
     // Emit individual vote event to connected clients
     const actionName = Actions[action];
-    io.emit("vote", {
+    const voteData: CachedVote = {
       player,
       action: actionName,
       blockNumber,
       txHash,
-    });
+      timestamp: Date.now(),
+    };
+
+    // Cache the vote
+    addToCircularBuffer(recentVotes, voteData, MAX_CACHED_VOTES);
+
+    // Broadcast to all clients
+    io.emit("vote", voteData);
 
     console.log(
       `[${source}] Vote: ${player.slice(0, 8)}... voted ${actionName} in block ${blockNumber}`

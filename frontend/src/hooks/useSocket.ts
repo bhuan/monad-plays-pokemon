@@ -77,8 +77,23 @@ export function useSocket() {
     });
 
     newSocket.on("vote", (vote: Vote) => {
-      console.log("[Socket.io] Vote:", vote);
-      setRecentVotes((prev) => [...prev.slice(-49), vote]); // Keep last 50 votes
+      setRecentVotes((prev) => [...prev.slice(-99), vote]); // Keep last 100 votes
+    });
+
+    // Hydrate from cached history on connect (instant social feed)
+    newSocket.on("recentHistory", (history: { votes: Vote[]; actions: WindowResult[] }) => {
+      console.log(`[Socket.io] Hydrating from cache: ${history.votes.length} votes, ${history.actions.length} actions`);
+
+      // Set recent votes from cache
+      if (history.votes.length > 0) {
+        setRecentVotes(history.votes);
+      }
+
+      // Set action history from cache
+      if (history.actions.length > 0) {
+        setResultHistory(history.actions);
+        setLastResult(history.actions[history.actions.length - 1]);
+      }
     });
 
     // Raw WebSocket for high-performance frame streaming

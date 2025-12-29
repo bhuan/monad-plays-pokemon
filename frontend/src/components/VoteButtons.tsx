@@ -22,7 +22,10 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
+  // Track "vote sent" state for visual feedback during cooldown
+  const [sentAction, setSentAction] = useState<ActionType | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Privy hooks for embedded wallet and smart wallet
   const { wallets } = useWallets();
@@ -57,12 +60,29 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     };
   }, [error]);
 
+  // Mark vote as sent with visual feedback, auto-clears after delay
+  const markVoteSent = (action: ActionType, delayMs: number = 1000) => {
+    setSentAction(action);
+    if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
+    sentTimeoutRef.current = setTimeout(() => {
+      setSentAction(null);
+    }, delayMs);
+  };
+
+  // Cleanup sent timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sentTimeoutRef.current) clearTimeout(sentTimeoutRef.current);
+    };
+  }, []);
+
   // Handle wagmi transaction broadcast (for external wallets)
   // Optimistic UI: Enable buttons as soon as tx is broadcast, don't wait for confirmation
   useEffect(() => {
     if (txHash && pendingAction !== null) {
       console.log("Vote tx broadcast (wagmi):", txHash);
       console.log("Buttons re-enabled. Vote will appear in chat via proposed state (~400ms-1s)");
+      markVoteSent(pendingAction, 1500); // Show "sent" feedback for 1.5s
       setPendingAction(null);
       setIsVoting(false);
       reset();
@@ -157,6 +177,8 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
         // 1 second is enough for bundler to process the UserOp
         console.log("Vote submitted to bundler, buttons re-enabled in 1s (optimistic)");
         console.log("Vote will appear in chat via proposed state (~400ms-1s)");
+        // Show "sent" visual feedback immediately, clear after 1.5s total
+        markVoteSent(action, 1500);
         setTimeout(() => {
           setPendingAction(null);
           setIsVoting(false);
@@ -207,6 +229,9 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     return label;
   };
 
+  // Check if this specific button shows the "sent" state
+  const isButtonSent = (action: ActionType) => sentAction === action;
+
   return (
     <div className="vote-buttons">
       <h3>Cast Your Vote</h3>
@@ -214,40 +239,48 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
       {/* D-Pad */}
       <div className="dpad">
         <button
-          className="dpad-btn up"
+          className={`dpad-btn up ${isButtonSent(Action.UP) ? 'sent' : ''}`}
           onClick={() => vote(Action.UP)}
           disabled={isDisabled}
         >
           {pendingAction === Action.UP && (isVoting || isWriting)
             ? <span className="loading">...</span>
+            : isButtonSent(Action.UP)
+            ? <span className="checkmark">✓</span>
             : <span className="arrow" />}
         </button>
         <button
-          className="dpad-btn left"
+          className={`dpad-btn left ${isButtonSent(Action.LEFT) ? 'sent' : ''}`}
           onClick={() => vote(Action.LEFT)}
           disabled={isDisabled}
         >
           {pendingAction === Action.LEFT && (isVoting || isWriting)
             ? <span className="loading">...</span>
+            : isButtonSent(Action.LEFT)
+            ? <span className="checkmark">✓</span>
             : <span className="arrow" />}
         </button>
         <div className="dpad-center" />
         <button
-          className="dpad-btn right"
+          className={`dpad-btn right ${isButtonSent(Action.RIGHT) ? 'sent' : ''}`}
           onClick={() => vote(Action.RIGHT)}
           disabled={isDisabled}
         >
           {pendingAction === Action.RIGHT && (isVoting || isWriting)
             ? <span className="loading">...</span>
+            : isButtonSent(Action.RIGHT)
+            ? <span className="checkmark">✓</span>
             : <span className="arrow" />}
         </button>
         <button
-          className="dpad-btn down"
+          className={`dpad-btn down ${isButtonSent(Action.DOWN) ? 'sent' : ''}`}
           onClick={() => vote(Action.DOWN)}
           disabled={isDisabled}
         >
           {pendingAction === Action.DOWN && (isVoting || isWriting)
             ? <span className="loading">...</span>
+            : isButtonSent(Action.DOWN)
+            ? <span className="checkmark">✓</span>
             : <span className="arrow" />}
         </button>
       </div>
@@ -255,36 +288,36 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
       {/* Action buttons */}
       <div className="action-buttons">
         <button
-          className="action-btn b"
+          className={`action-btn b ${isButtonSent(Action.B) ? 'sent' : ''}`}
           onClick={() => vote(Action.B)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.B, "B")}
+          {isButtonSent(Action.B) ? "✓" : getButtonText(Action.B, "B")}
         </button>
         <button
-          className="action-btn a"
+          className={`action-btn a ${isButtonSent(Action.A) ? 'sent' : ''}`}
           onClick={() => vote(Action.A)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.A, "A")}
+          {isButtonSent(Action.A) ? "✓" : getButtonText(Action.A, "A")}
         </button>
       </div>
 
       {/* Start/Select */}
       <div className="menu-buttons">
         <button
-          className="menu-btn"
+          className={`menu-btn ${isButtonSent(Action.SELECT) ? 'sent' : ''}`}
           onClick={() => vote(Action.SELECT)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.SELECT, "SELECT")}
+          {isButtonSent(Action.SELECT) ? "✓ SENT" : getButtonText(Action.SELECT, "SELECT")}
         </button>
         <button
-          className="menu-btn"
+          className={`menu-btn ${isButtonSent(Action.START) ? 'sent' : ''}`}
           onClick={() => vote(Action.START)}
           disabled={isDisabled}
         >
-          {getButtonText(Action.START, "START")}
+          {isButtonSent(Action.START) ? "✓ SENT" : getButtonText(Action.START, "START")}
         </button>
       </div>
 

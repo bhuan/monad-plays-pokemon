@@ -63,7 +63,7 @@ export class VoteAggregator {
     );
   }
 
-  private finalizeWindow(windowId: number): void {
+  private finalizeWindow(windowId: number, seedHash?: string): void {
     const windowVotes = this.votes.get(windowId) || [];
 
     // Skip windows with no votes
@@ -95,7 +95,7 @@ export class VoteAggregator {
       }
     }
 
-    // Find winning action (most votes, ties broken randomly)
+    // Find winning action (most votes)
     let maxVotes = 0;
     for (const action of Actions) {
       if (voteCounts[action] > maxVotes) {
@@ -106,8 +106,24 @@ export class VoteAggregator {
     // Collect all actions with max votes (for tie-breaking)
     const tiedActions = Actions.filter((action) => voteCounts[action] === maxVotes);
 
-    // Random selection among tied actions
-    const winningAction = tiedActions[Math.floor(Math.random() * tiedActions.length)];
+    // Deterministic tie-breaking using seed hash (first block of next window)
+    // Falls back to random if no seed provided (e.g., during RPC-only polling)
+    let winningAction: Action;
+    if (tiedActions.length === 1) {
+      winningAction = tiedActions[0];
+    } else if (seedHash) {
+      // Use last 8 hex chars of block hash as seed for deterministic selection
+      const seed = parseInt(seedHash.slice(-8), 16);
+      const index = seed % tiedActions.length;
+      winningAction = tiedActions[index];
+      console.log(
+        `Tie-break: ${tiedActions.join(", ")} → seed ${seedHash.slice(-8)} → index ${index} → ${winningAction}`
+      );
+    } else {
+      // Fallback to random (shouldn't happen in normal operation)
+      winningAction = tiedActions[Math.floor(Math.random() * tiedActions.length)];
+      console.log(`Tie-break: ${tiedActions.join(", ")} → random fallback → ${winningAction}`);
+    }
 
     const result: WindowResult = {
       windowId,
@@ -132,7 +148,8 @@ export class VoteAggregator {
   }
 
   // Called on each new block to check if window should be finalized
-  onBlock(blockNumber: number): void {
+  // When blockHash is provided, uses it as deterministic seed for tie-breaking
+  onBlock(blockNumber: number, blockHash?: string): void {
     const windowId = this.getWindowId(blockNumber);
 
     // Initialize if first block
@@ -144,8 +161,12 @@ export class VoteAggregator {
     // Check if we've moved to a new window
     if (windowId > this.currentWindow) {
       // Finalize all completed windows
+      // The block hash of the FIRST block of the NEW window is used as seed
+      // for the PREVIOUS window's tie-breaking (unpredictable during voting)
       for (let w = this.currentWindow; w < windowId; w++) {
-        this.finalizeWindow(w);
+        // Use block hash as seed only for the most recent completed window
+        const seedForWindow = (w === windowId - 1) ? blockHash : undefined;
+        this.finalizeWindow(w, seedForWindow);
       }
       this.currentWindow = windowId;
     }

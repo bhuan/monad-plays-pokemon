@@ -335,7 +335,7 @@ async function main() {
     blockNumber: number,
     txHash: string,
     logIndex: number,
-    source: "ws" | "poll" | "proposed"
+    source: "ws" | "poll" | "proposed" | "logs"
   ): boolean {
     const eventKey = getEventKey(blockNumber, txHash, logIndex);
 
@@ -371,82 +371,99 @@ async function main() {
   // VoteCast event signature: keccak256("VoteCast(address,uint8)")
   const VOTE_CAST_TOPIC = ethers.id("VoteCast(address,uint8)");
 
-  // Connect to Monad WebSocket for monadNewHeads subscription
+  // Connect to Monad WebSocket with dual subscriptions:
+  // 1. monadNewHeads - for window boundaries and block hash (tie-breaking)
+  // 2. monadLogs - for VoteCast events directly (no receipt fetching needed)
   const WebSocket = require("ws");
   let ws: InstanceType<typeof WebSocket>;
   let wsReconnectTimeout: NodeJS.Timeout | null = null;
 
+  // Track subscription IDs to route messages correctly
+  let newHeadsSubId: string | null = null;
+  let logsSubId: string | null = null;
+
   function connectWebSocket(): void {
-    console.log("Connecting to Monad WebSocket for monadNewHeads (Proposed state)...");
+    console.log("Connecting to Monad WebSocket (dual subscription: monadNewHeads + monadLogs)...");
 
     ws = new WebSocket(config.rpcUrl);
 
     ws.on("open", () => {
       console.log("Connected to Monad WebSocket");
 
-      // Subscribe to monadNewHeads with Proposed state for fastest block detection
-      const subscribeMsg = JSON.stringify({
+      // Subscription 1: monadNewHeads for block boundaries and hash (tie-breaking seed)
+      // Note: method is eth_subscribe, "monadNewHeads" is the subscription type
+      const newHeadsMsg = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "monad_subscribe",
-        params: ["monadNewHeads", { state: "Proposed" }]
+        method: "eth_subscribe",
+        params: ["monadNewHeads"]
       });
-      ws.send(subscribeMsg);
-      console.log("Subscribed to monadNewHeads (Proposed state)");
+      ws.send(newHeadsMsg);
+      console.log("Subscribing to monadNewHeads...");
+
+      // Subscription 2: monadLogs filtered by our contract and VoteCast topic
+      // Note: method is eth_subscribe, "monadLogs" is the subscription type
+      const logsMsg = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "eth_subscribe",
+        params: ["monadLogs", {
+          address: config.contractAddress,
+          topics: [VOTE_CAST_TOPIC]
+        }]
+      });
+      ws.send(logsMsg);
+      console.log("Subscribing to monadLogs (VoteCast events)...");
     });
 
     ws.on("message", async (data: Buffer) => {
       try {
         const msg = JSON.parse(data.toString());
 
-        // Handle subscription confirmation
+        // Handle subscription confirmations
         if (msg.id === 1 && msg.result) {
-          console.log(`Subscription ID: ${msg.result}`);
+          newHeadsSubId = msg.result;
+          console.log(`monadNewHeads subscription ID: ${newHeadsSubId}`);
+          return;
+        }
+        if (msg.id === 2 && msg.result) {
+          logsSubId = msg.result;
+          console.log(`monadLogs subscription ID: ${logsSubId}`);
           return;
         }
 
-        // Handle subscription data (new proposed block)
-        if (msg.method === "monad_subscription" && msg.params?.result) {
-          const blockData = msg.params.result;
-          const blockNumber = parseInt(blockData.number, 16);
-          const blockHash = blockData.hash;
+        // Handle subscription data (method is eth_subscription for both standard and monad variants)
+        if (msg.method === "eth_subscription" && msg.params?.subscription && msg.params?.result) {
+          const subId = msg.params.subscription;
+          const result = msg.params.result;
 
-          lastWebSocketBlock = Math.max(lastWebSocketBlock, blockNumber);
+          // Route to correct handler based on subscription ID
+          if (subId === newHeadsSubId) {
+            // monadNewHeads: new block header
+            const blockNumber = parseInt(result.number, 16);
+            const blockHash = result.hash;
 
-          // Trigger window progression on each proposed block
-          aggregator.onBlock(blockNumber);
+            lastWebSocketBlock = Math.max(lastWebSocketBlock, blockNumber);
 
-          // Fetch receipts for this block to find VoteCast events
-          // Use eth_getBlockReceipts for efficiency
-          try {
-            const receipts = await httpProvider.send("eth_getBlockReceipts", [blockData.number]);
+            // Trigger window progression on each proposed block
+            // Pass block hash for deterministic tie-breaking (used as seed for previous window)
+            aggregator.onBlock(blockNumber, blockHash);
 
-            if (receipts && Array.isArray(receipts)) {
-              for (const receipt of receipts) {
-                // Check if this transaction is to our contract
-                if (receipt.to?.toLowerCase() !== config.contractAddress.toLowerCase()) {
-                  continue;
-                }
+          } else if (subId === logsSubId) {
+            // monadLogs: VoteCast event
+            // Log format: { address, topics, data, blockNumber, transactionHash, logIndex, ... }
+            const blockNumber = parseInt(result.blockNumber, 16);
+            const txHash = result.transactionHash;
+            const logIndex = parseInt(result.logIndex, 16);
 
-                // Look for VoteCast events in the logs
-                for (const log of receipt.logs || []) {
-                  if (log.topics?.[0] === VOTE_CAST_TOPIC) {
-                    // Decode the event
-                    // topics[1] = indexed player address (padded to 32 bytes)
-                    // data = action (uint8)
-                    const player = "0x" + log.topics[1].slice(26);
-                    const action = parseInt(log.data, 16);
-                    const txHash = receipt.transactionHash;
-                    const logIndex = parseInt(log.logIndex, 16);
+            // Decode VoteCast event
+            // topics[0] = event signature (already filtered)
+            // topics[1] = indexed player address (padded to 32 bytes)
+            // data = action (uint8)
+            const player = "0x" + result.topics[1].slice(26);
+            const action = parseInt(result.data, 16);
 
-                    processVoteEvent(player, action, blockNumber, txHash, logIndex, "proposed");
-                  }
-                }
-              }
-            }
-          } catch (receiptErr) {
-            // eth_getBlockReceipts might not be available, fall back to polling
-            // This is fine - polling will catch it
+            processVoteEvent(player, action, blockNumber, txHash, logIndex, "logs");
           }
         }
       } catch (parseErr) {
@@ -460,6 +477,8 @@ async function main() {
 
     ws.on("close", () => {
       console.log("WebSocket disconnected, reconnecting in 5 seconds...");
+      newHeadsSubId = null;
+      logsSubId = null;
       if (wsReconnectTimeout) clearTimeout(wsReconnectTimeout);
       wsReconnectTimeout = setTimeout(connectWebSocket, 5000);
     });
@@ -559,7 +578,7 @@ async function main() {
     }
   }
 
-  // Start polling at window interval
+  // Start polling at window interval (safety net for WebSocket disconnects)
   const pollInterval = config.windowSize * config.blockTimeMs;
   console.log(`Starting RPC polling every ${pollInterval}ms`);
 

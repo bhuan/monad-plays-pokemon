@@ -241,3 +241,26 @@
   margin: 0;
   font-size: 0.85rem;
 }
+
+/* Focus state for keyboard controls */
+.vote-buttons:focus {
+  outline: none;
+}
+
+.vote-buttons.focused {
+  box-shadow: 0 0 0 3px #27ae60, 0 0 12px rgba(39, 174, 96, 0.4);
+}
+
+/* Keyboard controls hint */
+.keyboard-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #888;
+  text-align: center;
+  transition: color 0.2s;
+}
+
+.keyboard-hint.active {
+  color: #27ae60;
+  font-weight: 500;
+}

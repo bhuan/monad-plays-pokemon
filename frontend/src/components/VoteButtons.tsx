@@ -9,6 +9,7 @@ import {
   CONTRACT_ABI,
   type ActionType,
 } from "../config/wagmi";
+import { useKeyboardControls } from "../hooks/useKeyboardControls";
 import "./VoteButtons.css";
 
 type AuthMode = "privy" | "direct" | null;
@@ -26,6 +27,10 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   const [sentAction, setSentAction] = useState<ActionType | null>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sentTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Keyboard controls
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   // Privy hooks for embedded wallet and smart wallet
   const { wallets } = useWallets();
@@ -232,8 +237,21 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   // Check if this specific button shows the "sent" state
   const isButtonSent = (action: ActionType) => sentAction === action;
 
+  // Enable keyboard controls when container is focused and voting is enabled
+  useKeyboardControls({
+    containerRef,
+    onVote: vote,
+    enabled: !disabled && !isVoting && !isWriting,
+  });
+
   return (
-    <div className="vote-buttons">
+    <div
+      className={`vote-buttons ${isFocused ? 'focused' : ''}`}
+      ref={containerRef}
+      tabIndex={0}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+    >
       <h3>Cast Your Vote</h3>
 
       {/* D-Pad */}
@@ -324,6 +342,15 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
       {error && <p className="error">{error}</p>}
 
       {disabled && <p className="warning">Sign in to vote</p>}
+
+      {/* Keyboard controls hint */}
+      {!disabled && (
+        <p className={`keyboard-hint ${isFocused ? 'active' : ''}`}>
+          {isFocused
+            ? "Keyboard active: WASD/Arrows, Z/X, Enter/Shift"
+            : "Click here to enable keyboard controls"}
+        </p>
+      )}
     </div>
   );
 }

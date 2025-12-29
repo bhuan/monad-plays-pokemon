@@ -1,0 +1,166 @@
+.latency-stats {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 1rem;
+  color: #fff;
+  min-width: 200px;
+}
+
+.latency-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.latency-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.header-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.commit-state-select {
+  background: #333;
+  border: 1px solid #444;
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.commit-state-select:hover {
+  border-color: #666;
+}
+
+.commit-state-select:focus {
+  outline: none;
+  border-color: #27ae60;
+}
+
+.clear-btn {
+  background: #333;
+  border: none;
+  color: #888;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.clear-btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.latency-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem;
+  background: #252540;
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: #888;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: bold;
+  font-family: monospace;
+}
+
+.stat-value.avg {
+  color: #27ae60;
+}
+
+.latency-list h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.latency-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.latency-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  font-family: monospace;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+
+.latency-list li .action {
+  color: #888;
+}
+
+.latency-list li .latency {
+  font-weight: bold;
+}
+
+/* Color coding by latency */
+.latency-list li.fast {
+  background: rgba(39, 174, 96, 0.2);
+}
+.latency-list li.fast .latency {
+  color: #27ae60;
+}
+
+.latency-list li.medium {
+  background: rgba(241, 196, 15, 0.2);
+}
+.latency-list li.medium .latency {
+  color: #f1c40f;
+}
+
+.latency-list li.slow {
+  background: rgba(230, 126, 34, 0.2);
+}
+.latency-list li.slow .latency {
+  color: #e67e22;
+}
+
+.latency-list li.very-slow {
+  background: rgba(231, 76, 60, 0.2);
+}
+.latency-list li.very-slow .latency {
+  color: #e74c3c;
+}
+
+.no-data {
+  color: #666;
+  text-align: center;
+  font-size: 0.8rem;
+  margin: 1rem 0 0;
+}
+
+.no-data small {
+  color: #555;
+}

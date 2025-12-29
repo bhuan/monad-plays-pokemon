@@ -145,6 +145,16 @@ function getEventKey(blockNumber: number, txHash: string, logIndex: number): str
 let lastPolledBlock = 0;
 let lastWebSocketBlock = 0;
 
+// Commit state filter for monadNewHeads/monadLogs
+// Options: "Proposed" (fastest), "Voted", "Finalized" (most confirmed)
+type CommitState = "Proposed" | "Voted" | "Finalized";
+let commitStateFilter: CommitState = "Proposed";
+
+// Track processed blocks per state to avoid duplicate processing
+// Key: blockNumber, Value: set of states we've processed for this block
+const processedBlockStates = new Map<number, Set<string>>();
+const MAX_PROCESSED_BLOCKS = 100; // Cleanup old entries
+
 async function main() {
   console.log("MonadPlaysPokemon Indexer starting...");
   console.log(`Contract: ${config.contractAddress}`);
@@ -289,6 +299,22 @@ async function main() {
     socket.on("disconnect", () => {
       console.log(`[Socket.io] Client disconnected: ${socket.id}`);
     });
+
+    // Handle commit state filter changes from frontend
+    socket.on("setCommitState", (state: string) => {
+      if (state === "Proposed" || state === "Voted" || state === "Finalized") {
+        const oldState = commitStateFilter;
+        commitStateFilter = state;
+        console.log(`[Config] Commit state filter changed: ${oldState} → ${state}`);
+        // Broadcast to all clients
+        io.emit("commitStateChanged", state);
+      } else {
+        console.warn(`[Config] Invalid commit state received: ${state}`);
+      }
+    });
+
+    // Send current commit state to newly connected client
+    socket.emit("commitStateChanged", commitStateFilter);
   });
 
   httpServer.listen(config.port, () => {
@@ -392,6 +418,7 @@ async function main() {
 
       // Subscription 1: monadNewHeads for block boundaries and hash (tie-breaking seed)
       // Note: method is eth_subscribe, "monadNewHeads" is the subscription type
+      // Default state is "Proposed" (fastest notification)
       const newHeadsMsg = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -403,6 +430,7 @@ async function main() {
 
       // Subscription 2: monadLogs filtered by our contract and VoteCast topic
       // Note: method is eth_subscribe, "monadLogs" is the subscription type
+      // Default state is "Proposed" (fastest notification)
       const logsMsg = JSON.stringify({
         jsonrpc: "2.0",
         id: 2,
@@ -420,15 +448,23 @@ async function main() {
       try {
         const msg = JSON.parse(data.toString());
 
-        // Handle subscription confirmations
-        if (msg.id === 1 && msg.result) {
-          newHeadsSubId = msg.result;
-          console.log(`monadNewHeads subscription ID: ${newHeadsSubId}`);
+        // Handle subscription confirmations or errors
+        if (msg.id === 1) {
+          if (msg.result) {
+            newHeadsSubId = msg.result;
+            console.log(`monadNewHeads subscription ID: ${newHeadsSubId}`);
+          } else if (msg.error) {
+            console.error(`monadNewHeads subscription FAILED:`, msg.error);
+          }
           return;
         }
-        if (msg.id === 2 && msg.result) {
-          logsSubId = msg.result;
-          console.log(`monadLogs subscription ID: ${logsSubId}`);
+        if (msg.id === 2) {
+          if (msg.result) {
+            logsSubId = msg.result;
+            console.log(`monadLogs subscription ID: ${logsSubId}`);
+          } else if (msg.error) {
+            console.error(`monadLogs subscription FAILED:`, msg.error);
+          }
           return;
         }
 
@@ -442,10 +478,36 @@ async function main() {
             // monadNewHeads: new block header
             const blockNumber = parseInt(result.number, 16);
             const blockHash = result.hash;
+            const blockState = result.commitState as string;
+
+            // Debug: Log commit state
+            console.log(`[monadNewHeads] block=${blockNumber} state=${blockState} filter=${commitStateFilter}`);
+
+            // Filter by configured commit state
+            if (blockState !== commitStateFilter) {
+              return; // Skip this notification
+            }
+
+            // Avoid processing same block+state twice
+            let blockStates = processedBlockStates.get(blockNumber);
+            if (!blockStates) {
+              blockStates = new Set();
+              processedBlockStates.set(blockNumber, blockStates);
+            }
+            if (blockStates.has(blockState)) {
+              return; // Already processed this block at this state
+            }
+            blockStates.add(blockState);
+
+            // Cleanup old entries
+            if (processedBlockStates.size > MAX_PROCESSED_BLOCKS) {
+              const oldestBlock = Math.min(...processedBlockStates.keys());
+              processedBlockStates.delete(oldestBlock);
+            }
 
             lastWebSocketBlock = Math.max(lastWebSocketBlock, blockNumber);
 
-            // Trigger window progression on each proposed block
+            // Trigger window progression
             // Pass block hash for deterministic tie-breaking (used as seed for previous window)
             aggregator.onBlock(blockNumber, blockHash);
 
@@ -455,6 +517,15 @@ async function main() {
             const blockNumber = parseInt(result.blockNumber, 16);
             const txHash = result.transactionHash;
             const logIndex = parseInt(result.logIndex, 16);
+            const logState = result.commitState as string;
+
+            // Debug: Log commit state
+            console.log(`[monadLogs] block=${blockNumber} state=${logState} filter=${commitStateFilter}`);
+
+            // Filter by configured commit state
+            if (logState !== commitStateFilter) {
+              return; // Skip this notification
+            }
 
             // Decode VoteCast event
             // topics[0] = event signature (already filtered)

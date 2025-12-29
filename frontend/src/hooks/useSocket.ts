@@ -40,16 +40,27 @@ function getStreamUrl(): string {
   return `${protocol}//${window.location.host}/stream`;
 }
 
-export function useSocket() {
+export type CommitState = "Proposed" | "Voted" | "Finalized";
+
+interface UseSocketOptions {
+  onVoteReceived?: (vote: Vote) => void;
+}
+
+export function useSocket(options: UseSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastResult, setLastResult] = useState<WindowResult | null>(null);
   const [resultHistory, setResultHistory] = useState<WindowResult[]>([]);
   const [recentVotes, setRecentVotes] = useState<Vote[]>([]);
   const [screenInfo, setScreenInfo] = useState<ScreenInfo>({ width: 160, height: 144 });
   const [viewerCount, setViewerCount] = useState(0);
+  const [commitState, setCommitStateLocal] = useState<CommitState>("Proposed");
   const frameCallbackRef = useRef<((frame: ArrayBuffer) => void) | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const onVoteReceivedRef = useRef(options.onVoteReceived);
+
+  // Keep callback ref up to date
+  onVoteReceivedRef.current = options.onVoteReceived;
 
   useEffect(() => {
     // Socket.io for windowResult events (use polling only to avoid WebSocket upgrade errors)
@@ -78,6 +89,14 @@ export function useSocket() {
 
     newSocket.on("vote", (vote: Vote) => {
       setRecentVotes((prev) => [...prev.slice(-99), vote]); // Keep last 100 votes
+      // Call latency measurement callback if provided
+      onVoteReceivedRef.current?.(vote);
+    });
+
+    // Listen for commit state changes from server
+    newSocket.on("commitStateChanged", (state: CommitState) => {
+      console.log("[Socket.io] Commit state:", state);
+      setCommitStateLocal(state);
     });
 
     // Hydrate from cached history on connect (instant social feed)
@@ -157,12 +176,21 @@ export function useSocket() {
     setLastResult(null);
   }, []);
 
+  // Send commit state change to server
+  const setCommitState = useCallback((state: CommitState) => {
+    if (socketRef.current) {
+      socketRef.current.emit("setCommitState", state);
+    }
+  }, []);
+
   return {
     isConnected,
     lastResult,
     resultHistory,
     recentVotes,
     screenInfo,
+    commitState,
+    setCommitState,
     viewerCount,
     setFrameCallback,
     clearHistory,

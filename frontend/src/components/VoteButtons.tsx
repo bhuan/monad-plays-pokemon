@@ -13,12 +13,28 @@ import "./VoteButtons.css";
 
 type AuthMode = "privy" | "direct" | null;
 
+// Map action enum to string name for latency tracking
+const ACTION_NAMES: Record<ActionType, string> = {
+  [Action.UP]: "UP",
+  [Action.DOWN]: "DOWN",
+  [Action.LEFT]: "LEFT",
+  [Action.RIGHT]: "RIGHT",
+  [Action.A]: "A",
+  [Action.B]: "B",
+  [Action.START]: "START",
+  [Action.SELECT]: "SELECT",
+};
+
 interface VoteButtonsProps {
   disabled?: boolean;
   authMode?: AuthMode;
+  /** Voter's address (AA wallet for privy, EOA for direct) */
+  voterAddress?: string;
+  /** Callback when vote is clicked, for latency measurement */
+  onVoteClick?: (address: string, action: string) => void;
 }
 
-export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
+export function VoteButtons({ disabled, authMode, voterAddress, onVoteClick }: VoteButtonsProps) {
   const [pendingAction, setPendingAction] = useState<ActionType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isVoting, setIsVoting] = useState(false);
@@ -82,12 +98,19 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     if (txHash && pendingAction !== null) {
       console.log("Vote tx broadcast (wagmi):", txHash);
       console.log("Buttons re-enabled. Vote will appear in chat via proposed state (~400ms-1s)");
+
+      // Record latency start time NOW (after wallet approval, when tx is actually broadcast)
+      // This gives accurate latency measurement without human approval time
+      if (authMode === "direct" && onVoteClick && voterAddress) {
+        onVoteClick(voterAddress, ACTION_NAMES[pendingAction]);
+      }
+
       markVoteSent(pendingAction, 1500); // Show "sent" feedback for 1.5s
       setPendingAction(null);
       setIsVoting(false);
       reset();
     }
-  }, [txHash, pendingAction, reset]);
+  }, [txHash, pendingAction, reset, authMode, onVoteClick, voterAddress]);
 
   // Handle wagmi write errors (for external wallets)
   useEffect(() => {
@@ -173,6 +196,11 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
             }
           });
 
+        // Record vote click for latency measurement
+        if (onVoteClick && voterAddress) {
+          onVoteClick(voterAddress, ACTION_NAMES[action]);
+        }
+
         // Optimistic UI: Enable buttons after short cooldown to prevent nonce collisions
         // 1 second is enough for bundler to process the UserOp
         console.log("Vote submitted to bundler, buttons re-enabled in 1s (optimistic)");
@@ -197,6 +225,8 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           functionName: "vote",
           args: [action],
         });
+        // Note: Latency measurement starts when txHash is received (after wallet approval)
+        // This is handled in the useEffect watching txHash
         // Note: success/error is handled in useEffect watching isSuccess/writeError
       } else {
         setError("No wallet connected");

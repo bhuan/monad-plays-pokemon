@@ -6,9 +6,11 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } fro
 import { injected } from "wagmi/connectors";
 import { monadTestnet } from "./config/wagmi";
 import { useSocket } from "./hooks/useSocket";
+import { useLatencyMeasurement } from "./hooks/useLatencyMeasurement";
 import { VoteButtons } from "./components/VoteButtons";
 import { GameScreen } from "./components/GameScreen";
 import { VoteChat } from "./components/VoteChat";
+import { LatencyStats } from "./components/LatencyStats";
 import "./App.css";
 
 // Auth modes: "privy" for email/social with AA, "direct" for EOA wallet
@@ -37,6 +39,18 @@ function App() {
 
   // Get the smart wallet address (the AA contract address that votes go through)
   const smartWalletAddress = smartWalletClient?.account?.address;
+
+  // Latency measurement hook
+  const { stats: latencyStats, recordVoteClick, recordVoteReceived, clearStats: clearLatencyStats } = useLatencyMeasurement();
+
+  // Handle vote received from WebSocket for latency measurement
+  const handleVoteReceived = useCallback(
+    (vote: { player: string; action: string }) => {
+      recordVoteReceived(vote.player, vote.action);
+    },
+    [recordVoteReceived]
+  );
+
   const {
     isConnected: indexerConnected,
     resultHistory,
@@ -44,7 +58,9 @@ function App() {
     screenInfo,
     viewerCount,
     setFrameCallback,
-  } = useSocket();
+    commitState,
+    setCommitState,
+  } = useSocket({ onVoteReceived: handleVoteReceived });
 
   // Detect auth mode based on connection state
   useEffect(() => {
@@ -224,7 +240,12 @@ function App() {
 
           <div className="controls-chat-row">
             <div className="controls-container">
-              <VoteButtons disabled={!canVote} authMode={authMode} />
+              <VoteButtons
+                disabled={!canVote}
+                authMode={authMode}
+                voterAddress={authMode === "privy" ? smartWalletAddress : address}
+                onVoteClick={recordVoteClick}
+              />
               {(authMode === "privy" && smartWalletAddress) && (
                 <p className="your-wallet">
                   AA Wallet: {smartWalletAddress.slice(0, 6)}...{smartWalletAddress.slice(-4)}
@@ -235,6 +256,13 @@ function App() {
             <VoteChat
               votes={recentVotes}
               userAddress={authMode === "privy" ? smartWalletAddress : address}
+            />
+
+            <LatencyStats
+              stats={latencyStats}
+              onClear={clearLatencyStats}
+              commitState={commitState}
+              onCommitStateChange={setCommitState}
             />
           </div>
         </div>

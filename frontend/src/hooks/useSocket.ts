@@ -51,6 +51,67 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Connect frame stream WebSocket
+  const connectFrameStream = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
+    const streamUrl = getStreamUrl();
+    console.log("[WS] Connecting to frame stream:", streamUrl);
+
+    const ws = new WebSocket(streamUrl);
+    wsRef.current = ws;
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      console.log("[WS] Frame stream connected");
+      setIsConnected(true);
+    };
+
+    ws.onclose = () => {
+      console.log("[WS] Frame stream disconnected");
+      setIsConnected(false);
+    };
+
+    ws.onerror = (err) => {
+      console.error("[WS] Frame stream error:", err);
+    };
+
+    ws.onmessage = (event) => {
+      const data = event.data;
+
+      // Handle JSON messages (screenInfo, viewerCount)
+      if (typeof data === "string") {
+        try {
+          const msg = JSON.parse(data);
+          if (msg.type === "screenInfo") {
+            setScreenInfo({ width: msg.width, height: msg.height });
+          } else if (msg.type === "viewerCount") {
+            setViewerCount(msg.count);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+        return;
+      }
+
+      // Handle binary frame data
+      if (data instanceof ArrayBuffer && frameCallbackRef.current) {
+        frameCallbackRef.current(data);
+      }
+    };
+  }, []);
+
+  // Disconnect frame stream WebSocket
+  const disconnectFrameStream = useCallback(() => {
+    if (wsRef.current) {
+      console.log("[WS] Pausing frame stream (tab hidden)");
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     // Socket.io for windowResult events (use polling only to avoid WebSocket upgrade errors)
     const socketOptions = { transports: ["polling"] as ("polling")[] };
@@ -96,57 +157,30 @@ export function useSocket() {
       }
     });
 
-    // Raw WebSocket for high-performance frame streaming
-    const streamUrl = getStreamUrl();
-    console.log("[WS] Connecting to frame stream:", streamUrl);
+    // Initial frame stream connection
+    connectFrameStream();
 
-    const ws = new WebSocket(streamUrl);
-    wsRef.current = ws;
-    ws.binaryType = "arraybuffer";
-
-    ws.onopen = () => {
-      console.log("[WS] Frame stream connected");
-      setIsConnected(true);
-    };
-
-    ws.onclose = () => {
-      console.log("[WS] Frame stream disconnected");
-      setIsConnected(false);
-    };
-
-    ws.onerror = (err) => {
-      console.error("[WS] Frame stream error:", err);
-    };
-
-    ws.onmessage = (event) => {
-      const data = event.data;
-
-      // Handle JSON messages (screenInfo, viewerCount)
-      if (typeof data === "string") {
-        try {
-          const msg = JSON.parse(data);
-          if (msg.type === "screenInfo") {
-            setScreenInfo({ width: msg.width, height: msg.height });
-          } else if (msg.type === "viewerCount") {
-            setViewerCount(msg.count);
-          }
-        } catch {
-          // Ignore parse errors
-        }
-        return;
-      }
-
-      // Handle binary frame data
-      if (data instanceof ArrayBuffer && frameCallbackRef.current) {
-        frameCallbackRef.current(data);
+    // Visibility change handler - pause stream when tab is hidden to save bandwidth
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log("[Visibility] Tab hidden - pausing frame stream to save bandwidth");
+        disconnectFrameStream();
+      } else {
+        console.log("[Visibility] Tab visible - resuming frame stream");
+        connectFrameStream();
       }
     };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       newSocket.close();
-      ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
-  }, []);
+  }, [connectFrameStream, disconnectFrameStream]);
 
   const setFrameCallback = useCallback((callback: (frame: ArrayBuffer) => void) => {
     frameCallbackRef.current = callback;

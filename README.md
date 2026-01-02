@@ -16,8 +16,8 @@ A decentralized "Twitch Plays Pokémon" proof-of-concept running on the Monad bl
 ```
 
 - **Smart Contract**: Gas-minimized event emitter (no storage writes)
-- **Indexer**: Listens to VoteCast events, aggregates votes per window, broadcasts winning moves
-- **Frontend**: Wallet connection, voting UI, displays winning moves
+- **Indexer**: Listens to VoteCast events, aggregates votes per window, runs the emulator, streams game frames
+- **Frontend**: Wallet connection, voting UI, displays game stream
 
 ## The game loop
 
@@ -80,7 +80,7 @@ npm run dev
 ## Configuration
 
 ### Contract (.env)
-- `PRIVATE_KEY`: Deployer wallet private key (pre-configured)
+- `PRIVATE_KEY`: Deployer wallet private key
 - `MONAD_TESTNET_RPC_URL`: `https://testnet-rpc.monad.xyz`
 
 ### Indexer (.env)
@@ -102,14 +102,6 @@ npm run dev
 | RPC URL (WebSocket) | `wss://testnet-rpc.monad.xyz` |
 | Block Explorer | `https://testnet.monadvision.com` |
 
-## How It Works
-
-1. Users connect their wallet and vote for a GameBoy action (UP, DOWN, A, B, etc.)
-2. Votes are submitted as transactions to the MonadPlaysPokemon contract
-3. The indexer listens for VoteCast events and groups them into time windows
-4. At the end of each window (every N blocks), the most popular action wins
-5. The winning action is broadcast to all connected frontends
-
 ## Game Input Actions
 
 | Action | Description |
@@ -125,8 +117,7 @@ npm run dev
 
 ## POC Limitations
 
-- Emulator runs client-side (game state may diverge between clients)
-- No persistence of game state
+- Single indexer instance runs the authoritative emulator (anyone can run their own indexer with a separate game state)
 - Window timing based on block numbers
 
 ## Tech Stack

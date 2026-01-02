@@ -17,7 +17,7 @@ import "./App.css";
 type AuthMode = "privy" | "direct" | null;
 
 function App() {
-  const { login, logout, ready, authenticated, user } = usePrivy();
+  const { login, logout, ready, authenticated } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
   const { client: smartWalletClient } = useSmartWallets();
   const { setActiveWallet } = useSetActiveWallet();

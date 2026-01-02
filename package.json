@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@privy-io/react-auth": "^3.9.1",
+    "@privy-io/wagmi": "^2.1.2"
+  }
+}

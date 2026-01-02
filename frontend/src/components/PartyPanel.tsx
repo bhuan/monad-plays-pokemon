@@ -33,7 +33,7 @@ export function PartyPanel({ gameState }: PartyPanelProps) {
         <div key={index} className={`party-slot ${slot.pokedexNum > 0 ? "filled" : "empty"}`}>
           {slot.pokedexNum > 0 ? (
             <>
-              <div className="sprite-container">
+              <div className={`sprite-container ${slot.hp.current === 0 ? "fainted" : ""}`}>
                 <span className="level-badge">L{slot.level}</span>
                 <img
                   src={getSpriteUrl(slot.pokedexNum)}

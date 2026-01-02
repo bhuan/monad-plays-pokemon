@@ -140,3 +140,32 @@
   font-size: 0.75rem;
   color: #888;
 }
+
+/* Mobile landscape - compact game screen */
+@media (max-height: 600px) and (orientation: landscape) {
+  .game-screen {
+    gap: 0.25rem;
+  }
+
+  .screen-bezel {
+    padding: 0.5rem;
+    border-radius: 6px;
+  }
+
+  .game-canvas {
+    width: 288px;
+    height: 259px;
+  }
+
+  .loading-overlay {
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .shared-state-notice {
+    display: none;
+  }
+}

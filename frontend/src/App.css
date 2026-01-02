@@ -8,6 +8,8 @@ body {
   background: #0d0d1a;
   color: #fff;
   min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .app {
@@ -420,7 +422,7 @@ body {
   color: #555;
 }
 
-/* Responsive */
+/* Responsive - tablet/desktop narrow */
 @media (max-width: 1100px) {
   .game-row {
     flex-direction: column;
@@ -436,5 +438,101 @@ body {
 
   .controls-container {
     width: 100%;
+  }
+}
+
+/* Mobile landscape - keep horizontal layout, minimize chrome */
+@media (max-height: 600px) and (orientation: landscape) {
+  .app {
+    padding: 0.5rem;
+  }
+
+  .header {
+    padding: 0.25rem 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .header h1 {
+    font-size: 1.2rem;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .connection-status-bar {
+    padding: 0.25rem 0;
+    font-size: 0.65rem;
+  }
+
+  .wallet-section {
+    transform: scale(0.85);
+    transform-origin: center;
+  }
+
+  .game-row {
+    flex-direction: row !important;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .game-column {
+    gap: 0.25rem;
+  }
+
+  .game-status-bar {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+  }
+
+  .controls-column {
+    gap: 0.25rem;
+  }
+
+  .controls-chat-row {
+    display: flex;
+    flex-direction: row !important;
+    gap: 0.25rem;
+    align-items: stretch;
+    max-width: none !important;
+    width: auto;
+  }
+
+  .controls-container {
+    flex-shrink: 0;
+    width: auto !important;
+  }
+
+  .footer {
+    padding: 0.5rem 0;
+    margin-top: 0.5rem;
+  }
+
+  .last-winning-move {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .landscape-hint {
+    display: none;
+  }
+}
+
+/* Mobile portrait - hide party panel, show landscape hint */
+@media (max-width: 600px) and (orientation: portrait) {
+  .party-panel {
+    display: none;
+  }
+
+  .landscape-hint {
+    display: block;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.8rem;
+    color: #a0a0ff;
+    text-align: center;
   }
 }

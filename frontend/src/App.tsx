@@ -228,6 +228,10 @@ function App() {
         </div>
       </header>
 
+      <div className="landscape-hint">
+        For the best experience, rotate your device to landscape mode
+      </div>
+
       <main className="main">
         <div className="game-row">
           <div className="game-area">

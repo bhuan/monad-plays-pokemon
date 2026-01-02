@@ -9,7 +9,7 @@ import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
 import { config, contractAbi, Actions } from "./config";
 import { VoteAggregator } from "./voteAggregator";
-import { GameBoyEmulator } from "./emulator";
+import { GameBoyEmulator, GameState } from "./emulator";
 
 // Frontend static files path
 const FRONTEND_DIST = path.join(__dirname, "..", "..", "frontend", "dist");
@@ -89,6 +89,9 @@ async function ensureRomExists(): Promise<void> {
 // Auto-save interval (every 60 seconds)
 const AUTO_SAVE_INTERVAL = 60000;
 
+// Game state broadcast interval (every 2 seconds)
+const GAME_STATE_INTERVAL = 2000;
+
 // Startup delay to allow old container to save before we read (Railway race condition)
 const STARTUP_SAVE_DELAY = 5000;
 
@@ -124,6 +127,9 @@ interface CachedAction {
 // Circular buffers for recent history
 const recentVotes: CachedVote[] = [];
 const recentActions: CachedAction[] = [];
+
+// Cached game state for instant hydration
+let cachedGameState: GameState | null = null;
 
 // Helper to add item to circular buffer
 function addToCircularBuffer<T>(buffer: T[], item: T, maxSize: number): void {
@@ -274,7 +280,7 @@ async function main() {
     }
   });
 
-  // Socket.io for other events (windowResult, screenInfo, recentHistory)
+  // Socket.io for other events (windowResult, screenInfo, recentHistory, gameState)
   io.on("connection", (socket) => {
     console.log(`[Socket.io] Client connected: ${socket.id}`);
     socket.emit("screenInfo", emulator.getScreenDimensions());
@@ -285,6 +291,11 @@ async function main() {
       actions: recentActions,
     });
     console.log(`[Socket.io] Sent ${recentVotes.length} votes, ${recentActions.length} actions to ${socket.id}`);
+
+    // Send cached game state if available
+    if (cachedGameState) {
+      socket.emit("gameState", cachedGameState);
+    }
 
     socket.on("disconnect", () => {
       console.log(`[Socket.io] Client disconnected: ${socket.id}`);
@@ -304,6 +315,33 @@ async function main() {
   setInterval(() => {
     emulator.saveState();
   }, AUTO_SAVE_INTERVAL);
+
+  // Broadcast game state periodically
+  setInterval(() => {
+    const gameState = emulator.getGameState();
+    if (gameState) {
+      // Check if HP changed for any party Pokemon
+      const hpChanged = !cachedGameState ||
+        gameState.partyHp.some((hp, i) => {
+          const cached = cachedGameState?.partyHp?.[i];
+          return !cached || cached.current !== hp.current || cached.max !== hp.max;
+        });
+
+      // Only broadcast if state changed
+      const stateChanged = !cachedGameState ||
+        cachedGameState.location !== gameState.location ||
+        cachedGameState.badgeCount !== gameState.badgeCount ||
+        cachedGameState.partyCount !== gameState.partyCount ||
+        cachedGameState.money !== gameState.money ||
+        hpChanged;
+
+      if (stateChanged) {
+        cachedGameState = gameState;
+        io.emit("gameState", gameState);
+        console.log(`[GameState] ${gameState.location} | Badges: ${gameState.badgeCount}/8 | Party: ${gameState.partyCount}`);
+      }
+    }
+  }, GAME_STATE_INTERVAL);
 
   // Set up vote aggregator - execute winning move on emulator
   const aggregator = new VoteAggregator(config.windowSize, (result) => {

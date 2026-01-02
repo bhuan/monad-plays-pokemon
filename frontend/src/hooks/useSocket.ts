@@ -23,6 +23,28 @@ export interface ScreenInfo {
   height: number;
 }
 
+export interface GameState {
+  badges: {
+    boulder: boolean;
+    cascade: boolean;
+    thunder: boolean;
+    rainbow: boolean;
+    soul: boolean;
+    marsh: boolean;
+    volcano: boolean;
+    earth: boolean;
+  };
+  badgeCount: number;
+  mapId: number;
+  location: string;
+  playerX: number;
+  playerY: number;
+  partyCount: number;
+  partySpecies: number[]; // Pokedex numbers
+  partyHp: { current: number; max: number }[]; // HP for each party Pokemon
+  money: number;
+}
+
 // Use same origin if VITE_INDEXER_URL is not set (for single-server deployment)
 const INDEXER_URL = import.meta.env.VITE_INDEXER_URL || undefined;
 
@@ -47,6 +69,7 @@ export function useSocket() {
   const [recentVotes, setRecentVotes] = useState<Vote[]>([]);
   const [screenInfo, setScreenInfo] = useState<ScreenInfo>({ width: 160, height: 144 });
   const [viewerCount, setViewerCount] = useState(0);
+  const [gameState, setGameState] = useState<GameState | null>(null);
   const frameCallbackRef = useRef<((frame: ArrayBuffer) => void) | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -157,6 +180,11 @@ export function useSocket() {
       }
     });
 
+    // Game state updates (badges, location, party, etc.)
+    newSocket.on("gameState", (state: GameState) => {
+      setGameState(state);
+    });
+
     // Initial frame stream connection
     connectFrameStream();
 
@@ -198,6 +226,7 @@ export function useSocket() {
     recentVotes,
     screenInfo,
     viewerCount,
+    gameState,
     setFrameCallback,
     clearHistory,
   };

@@ -11,7 +11,7 @@ body {
 }
 
 .app {
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 1rem;
 }
@@ -236,8 +236,88 @@ body {
   flex-wrap: wrap;
 }
 
+.game-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.game-with-party {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.game-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .game-container {
   flex-shrink: 0;
+}
+
+/* Connection status bar (in header) */
+.connection-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #888;
+  padding: 0.5rem 0 0;
+}
+
+.connection-status-bar .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+}
+
+.connection-status-bar .status-dot.connected {
+  background: #27ae60;
+}
+
+.connection-status-bar .fps-counter {
+  color: #f39c12;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.connection-status-bar .viewer-count {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #e74c3c;
+  font-size: 0.8rem;
+}
+
+.connection-status-bar .viewer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e74c3c;
+  animation: pulse 2s infinite;
+}
+
+.connection-status-bar .rom-status {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.controls-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .controls-chat-row {
@@ -261,126 +341,49 @@ body {
   text-align: center;
 }
 
-.history-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  max-width: 500px;
-}
-
-.history-toggle {
+/* Last winning move */
+.last-winning-move {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #1a1a2e;
-  border: 1px solid #2a2a3e;
-  border-radius: 8px;
-  color: #888;
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.history-toggle:hover {
-  background: #252540;
-  color: #aaa;
-}
-
-.toggle-icon {
-  font-size: 0.65rem;
-}
-
-/* Vote history */
-.vote-history {
-  background: #1a1a2e;
-  border-radius: 12px;
-  padding: 1rem;
-  width: 100%;
-}
-
-.vote-history h4 {
-  margin: 0 0 0.75rem;
-  color: #888;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.vote-history ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.vote-history li {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.85rem;
-  padding: 0.3rem 0;
-  border-bottom: 1px solid #2a2a3e;
-}
-
-.vote-history li:last-child {
-  border-bottom: none;
-}
-
-.block-range {
-  color: #666;
-  font-family: monospace;
-  min-width: 90px;
-  font-size: 0.75rem;
-}
-
-.block-range a {
-  color: #667eea;
-  text-decoration: none;
-}
-
-.block-range a:hover {
-  text-decoration: underline;
-}
-
-.winning-action {
-  color: #27ae60;
-  font-weight: 600;
-  flex: 1;
-}
-
-.vote-breakdown {
-  display: flex;
-  gap: 0.4rem;
   flex-wrap: wrap;
-}
-
-.vote-item {
+  gap: 0.4rem;
+  font-size: 0.75rem;
   color: #888;
-  font-size: 0.7rem;
-  font-family: monospace;
+  padding: 0.3rem 0.5rem;
+  background: #1a1a2e;
+  border-radius: 6px;
 }
 
-.vote-item.winner {
+.last-move-label {
+  color: #666;
+}
+
+.last-move-action {
   color: #27ae60;
   font-weight: 600;
 }
 
-.vote-total {
+.last-move-total {
   color: #666;
-  font-size: 0.7rem;
-  margin-left: auto;
 }
 
-.no-history {
+.last-move-breakdown {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid #333;
+}
+
+.breakdown-item {
   color: #666;
-  font-size: 0.85rem;
-  margin: 0;
-  font-style: italic;
+  font-family: monospace;
+  font-size: 0.7rem;
+}
+
+.breakdown-item.winner {
+  color: #27ae60;
+  font-weight: 600;
 }
 
 
@@ -418,7 +421,7 @@ body {
 }
 
 /* Responsive */
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .game-row {
     flex-direction: column;
     align-items: center;
@@ -433,9 +436,5 @@ body {
 
   .controls-container {
     width: 100%;
-  }
-
-  .history-section {
-    max-width: 350px;
   }
 }

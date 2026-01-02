@@ -1,0 +1,56 @@
+.party-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: #1a1a2e;
+  border-radius: 4px;
+  border: 1px solid #333;
+}
+
+.party-slot {
+  width: 48px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background: #0d0d1a;
+  border-radius: 4px;
+  overflow: hidden;
+  padding-top: 2px;
+}
+
+.party-slot.empty {
+  opacity: 0.3;
+}
+
+.party-sprite {
+  width: 44px;
+  height: 44px;
+  image-rendering: pixelated;
+  transform: scale(1.5);
+  flex-shrink: 0;
+}
+
+.empty-slot {
+  width: 28px;
+  height: 28px;
+  border: 2px dashed #333;
+  border-radius: 50%;
+}
+
+.hp-bar-container {
+  width: 40px;
+  height: 4px;
+  background: #1a1a2e;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}

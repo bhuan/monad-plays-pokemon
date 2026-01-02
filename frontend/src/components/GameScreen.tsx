@@ -1,22 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { ScreenInfo } from "../hooks/useSocket";
 import "./GameScreen.css";
 
 interface GameScreenProps {
-  isConnected: boolean;
   screenInfo: ScreenInfo;
-  viewerCount: number;
   setFrameCallback: (callback: (frame: ArrayBuffer) => void) => void;
+  onFpsUpdate?: (fps: number) => void;
 }
 
 export function GameScreen({
-  isConnected,
   screenInfo,
-  viewerCount,
-  setFrameCallback
+  setFrameCallback,
+  onFpsUpdate
 }: GameScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [fps, setFps] = useState(0);
   const frameCountRef = useRef(0);
   const lastFpsUpdateRef = useRef(Date.now());
 
@@ -40,7 +37,7 @@ export function GameScreen({
         frameCountRef.current++;
         const now = Date.now();
         if (now - lastFpsUpdateRef.current >= 1000) {
-          setFps(frameCountRef.current);
+          onFpsUpdate?.(frameCountRef.current);
           frameCountRef.current = 0;
           lastFpsUpdateRef.current = now;
         }
@@ -70,19 +67,6 @@ export function GameScreen({
           height={screenInfo.height}
           className="game-canvas"
         />
-      </div>
-
-      <div className="status-bar">
-        <span className={`status-dot ${isConnected ? "connected" : ""}`} />
-        <span>{isConnected ? "Connected" : "Disconnected"}</span>
-        {isConnected && <span className="fps-counter">{fps} FPS</span>}
-        {viewerCount > 0 && (
-          <span className="viewer-count">
-            <span className="viewer-dot" />
-            {viewerCount} watching
-          </span>
-        )}
-        <span className="rom-status">Pokemon Red</span>
       </div>
     </div>
   );

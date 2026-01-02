@@ -9,6 +9,8 @@ import { useSocket } from "./hooks/useSocket";
 import { VoteButtons } from "./components/VoteButtons";
 import { GameScreen } from "./components/GameScreen";
 import { VoteChat } from "./components/VoteChat";
+import { GameStatusPanel } from "./components/GameStatusPanel";
+import { PartyPanel } from "./components/PartyPanel";
 import "./App.css";
 
 // Auth modes: "privy" for email/social with AA, "direct" for EOA wallet
@@ -43,6 +45,7 @@ function App() {
     recentVotes,
     screenInfo,
     viewerCount,
+    gameState,
     setFrameCallback,
   } = useSocket();
 
@@ -140,14 +143,17 @@ function App() {
   const canVote = isLoggedIn;
   const isLoading = !ready || isConnecting;
 
-  // Get display address from wagmi or Privy user
-  const displayAddress = address || user?.wallet?.address;
+  // Get display address - use AA wallet for Privy users (that's their on-chain identity)
+  // For direct EOA connections, use the connected address
+  const displayAddress = authMode === "privy"
+    ? smartWalletAddress
+    : address;
 
   // Copy address state
   const [copied, setCopied] = useState(false);
 
-  // Toggle for Recent Winning Moves
-  const [showHistory, setShowHistory] = useState(true);
+  // FPS from game screen
+  const [fps, setFps] = useState(0);
 
   const copyAddress = useCallback(() => {
     if (displayAddress) {
@@ -209,106 +215,81 @@ function App() {
           )}
         </div>
 
+        <div className="connection-status-bar">
+          <span className={`status-dot ${indexerConnected ? "connected" : ""}`} />
+          <span>{indexerConnected ? "Connected" : "Disconnected"}</span>
+          {indexerConnected && <span className="fps-counter">{fps} FPS</span>}
+          {viewerCount > 0 && (
+            <span className="viewer-count">
+              <span className="viewer-dot" />
+              {viewerCount} watching
+            </span>
+          )}
+        </div>
       </header>
 
       <main className="main">
         <div className="game-row">
-          <div className="game-container">
-            <GameScreen
-              isConnected={indexerConnected}
-              screenInfo={screenInfo}
-              viewerCount={viewerCount}
-              setFrameCallback={setFrameCallback}
-            />
+          <div className="game-area">
+            <div className="game-with-party">
+              <div className="game-column">
+                <GameScreen
+                  screenInfo={screenInfo}
+                  setFrameCallback={setFrameCallback}
+                  onFpsUpdate={setFps}
+                />
+                <GameStatusPanel gameState={gameState} />
+              </div>
+              <PartyPanel gameState={gameState} />
+            </div>
           </div>
 
-          <div className="controls-chat-row">
-            <div className="controls-container">
-              <VoteButtons disabled={!canVote} authMode={authMode} />
-              {(authMode === "privy" && smartWalletAddress) && (
-                <p className="your-wallet">
-                  AA Wallet: {smartWalletAddress.slice(0, 6)}...{smartWalletAddress.slice(-4)}
-                </p>
-              )}
+          <div className="controls-column">
+            <div className="controls-chat-row">
+              <div className="controls-container">
+                <VoteButtons disabled={!canVote} authMode={authMode} />
+              </div>
+
+              <VoteChat
+                votes={recentVotes}
+                userAddress={authMode === "privy" ? smartWalletAddress : address}
+              />
             </div>
 
-            <VoteChat
-              votes={recentVotes}
-              userAddress={authMode === "privy" ? smartWalletAddress : address}
-            />
-          </div>
-        </div>
-
-        <div className="history-section">
-          <button
-            className="history-toggle"
-            onClick={() => setShowHistory(!showHistory)}
-          >
-            {showHistory ? 'Hide' : 'Show'} Recent Winning Moves
-            <span className="toggle-icon">{showHistory ? '▲' : '▼'}</span>
-          </button>
-
-          {showHistory && (
-            <div className="vote-history">
-              {resultHistory.length === 0 ? (
-                <p className="no-history">No results yet</p>
-              ) : (
-                <ul>
-                  {resultHistory
-                    .slice()
-                    .reverse()
-                    .slice(0, 10)
-                    .map((result) => (
-                      <li key={result.windowId}>
-                        <span className="block-range">
-                          <a
-                            href={`https://testnet.monadvision.com/block/${result.startBlock}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {result.startBlock}
-                          </a>
-                          -
-                          <a
-                            href={`https://testnet.monadvision.com/block/${result.endBlock}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {result.endBlock}
-                          </a>
-                        </span>
-                        <span className="winning-action">
-                          {result.winningAction}
-                        </span>
-                        <span className="vote-breakdown">
-                          {Object.entries(result.votes)
-                            .filter(([, count]) => count > 0)
-                            .sort(([, a], [, b]) => b - a)
-                            .map(([action, count]) => (
-                              <span
-                                key={action}
-                                className={`vote-item ${action === result.winningAction ? 'winner' : ''}`}
-                              >
-                                {action}:{count}
-                              </span>
-                            ))}
-                        </span>
-                        <span className="vote-total">
-                          ({result.totalVotes} total)
-                        </span>
-                      </li>
+            {resultHistory.length > 0 && (() => {
+              const lastResult = resultHistory[resultHistory.length - 1];
+              const sortedVotes = Object.entries(lastResult.votes)
+                .filter(([, count]) => count > 0)
+                .sort(([, a], [, b]) => b - a);
+              const winningVotes = lastResult.votes[lastResult.winningAction] || 0;
+              return (
+                <div className="last-winning-move">
+                  <span className="last-move-label">Last action:</span>
+                  <span className="last-move-action">{lastResult.winningAction}</span>
+                  <span className="last-move-total">
+                    ({winningVotes} / {lastResult.totalVotes} vote{lastResult.totalVotes !== 1 ? 's' : ''})
+                  </span>
+                  <span className="last-move-breakdown">
+                    {sortedVotes.map(([action, count]) => (
+                      <span
+                        key={action}
+                        className={`breakdown-item ${action === lastResult.winningAction ? 'winner' : ''}`}
+                      >
+                        {action}:{count}
+                      </span>
                     ))}
-                </ul>
-              )}
-            </div>
-          )}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </main>
 
       <footer className="footer">
         <p>
-          All players see the same game state and vote on Monad Testnet for the next action.
-          Every 5 blocks, the most popular action is executed on the shared game. Ties are broken randomly.
+          All players see the same game state (Pokemon Red) and vote on Monad Testnet for the next action.
+          {" "}<strong>Every 5 blocks</strong> (approx. 2 seconds), the most popular action is executed on the shared game. Ties are broken randomly.
         </p>
         <p className="inspiration">
           Inspired by{" "}

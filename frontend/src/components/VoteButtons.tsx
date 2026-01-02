@@ -174,15 +174,15 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           });
 
         // Optimistic UI: Enable buttons after short cooldown to prevent nonce collisions
-        // 1 second is enough for bundler to process the UserOp
-        console.log("Vote submitted to bundler, buttons re-enabled in 1s (optimistic)");
+        // 1.5 seconds to avoid Privy re-signing dialogs on rapid clicks
+        console.log("Vote submitted to bundler, buttons re-enabled in 1.5s (optimistic)");
         console.log("Vote will appear in chat via proposed state (~400ms-1s)");
-        // Show "sent" visual feedback immediately, clear after 1.5s total
-        markVoteSent(action, 1500);
+        // Show "sent" visual feedback immediately, clear after 2s total
+        markVoteSent(action, 2000);
         setTimeout(() => {
           setPendingAction(null);
           setIsVoting(false);
-        }, 1000);
+        }, 1500);
       } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
         // Privy user but smart wallet not ready yet
         setError("Smart wallet not ready. Please wait or refresh.");

@@ -22,6 +22,7 @@ Thumbs.db
 # Foundry
 contracts/cache/
 contracts/out/
+contracts/broadcast/
 
 # Logs
 *.log
@@ -37,3 +38,4 @@ contracts/out/
 deploy-create2.js
 **/deploy-create2.js
 indexer/saves/
+bfg-1.14.0.jar

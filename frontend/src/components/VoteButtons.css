@@ -241,3 +241,69 @@
   margin: 0;
   font-size: 0.85rem;
 }
+
+/* Mobile landscape - compact controls */
+@media (max-height: 600px) and (orientation: landscape) {
+  .vote-buttons {
+    padding: 0.5rem;
+    gap: 0.4rem;
+    border-radius: 8px;
+    width: 130px;
+  }
+
+  .vote-buttons h3 {
+    font-size: 0.7rem;
+    margin-bottom: 0.2rem;
+  }
+
+  .dpad {
+    grid-template-columns: 36px 36px 36px;
+    grid-template-rows: 36px 36px 36px;
+    gap: 2px;
+  }
+
+  .dpad-btn .arrow {
+    border-width: 6px;
+  }
+
+  .dpad-btn.up .arrow {
+    border-bottom-width: 10px;
+  }
+
+  .dpad-btn.down .arrow {
+    border-top-width: 10px;
+  }
+
+  .dpad-btn.left .arrow {
+    border-right-width: 10px;
+  }
+
+  .dpad-btn.right .arrow {
+    border-left-width: 10px;
+  }
+
+  .action-buttons {
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+  }
+
+  .action-btn {
+    width: 42px;
+    height: 42px;
+    font-size: 0.9rem;
+  }
+
+  .menu-buttons {
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+
+  .menu-btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.55rem;
+  }
+
+  .warning {
+    font-size: 0.6rem;
+  }
+}

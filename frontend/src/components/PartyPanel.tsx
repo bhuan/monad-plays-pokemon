@@ -23,7 +23,8 @@ export function PartyPanel({ gameState }: PartyPanelProps) {
   const slots = Array.from({ length: 6 }, (_, i) => {
     const pokedexNum = gameState?.partySpecies?.[i] || 0;
     const hp = gameState?.partyHp?.[i] || { current: 0, max: 0 };
-    return { pokedexNum, hp };
+    const level = gameState?.partyLevels?.[i] || 0;
+    return { pokedexNum, hp, level };
   });
 
   return (
@@ -32,12 +33,15 @@ export function PartyPanel({ gameState }: PartyPanelProps) {
         <div key={index} className={`party-slot ${slot.pokedexNum > 0 ? "filled" : "empty"}`}>
           {slot.pokedexNum > 0 ? (
             <>
-              <img
-                src={getSpriteUrl(slot.pokedexNum)}
-                alt={`Pokemon #${slot.pokedexNum}`}
-                className="party-sprite"
-                loading="lazy"
-              />
+              <div className="sprite-container">
+                <span className="level-badge">L{slot.level}</span>
+                <img
+                  src={getSpriteUrl(slot.pokedexNum)}
+                  alt={`Pokemon #${slot.pokedexNum}`}
+                  className="party-sprite"
+                  loading="lazy"
+                />
+              </div>
               <div className="hp-bar-container">
                 <div
                   className="hp-bar-fill"

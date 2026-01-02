@@ -42,6 +42,7 @@ export interface GameState {
   partyCount: number;
   partySpecies: number[]; // Pokedex numbers
   partyHp: { current: number; max: number }[]; // HP for each party Pokemon
+  partyLevels: number[]; // Level of each party Pokemon
   money: number;
 }
 

@@ -287,18 +287,22 @@ export class GameBoyEmulator {
         partySpecies.push(pokedexNum);
       }
 
-      // Party Pokemon HP data
+      // Party Pokemon data
       // Each Pokemon struct is 44 (0x2C) bytes starting at 0xD16B
       // Current HP at offset 0x01 (2 bytes big-endian)
+      // Level at offset 0x21 (1 byte)
       // Max HP at offset 0x22 (2 bytes big-endian)
       const PARTY_DATA_START = 0xD16B;
       const POKEMON_STRUCT_SIZE = 0x2C;
       const partyHp: { current: number; max: number }[] = [];
+      const partyLevels: number[] = [];
       for (let i = 0; i < partyCount; i++) {
         const baseAddr = PARTY_DATA_START + (i * POKEMON_STRUCT_SIZE);
         const currentHp = ((memory[baseAddr + 0x01] || 0) << 8) | (memory[baseAddr + 0x02] || 0);
+        const level = memory[baseAddr + 0x21] || 0;
         const maxHp = ((memory[baseAddr + 0x22] || 0) << 8) | (memory[baseAddr + 0x23] || 0);
         partyHp.push({ current: currentHp, max: maxHp });
+        partyLevels.push(level);
       }
 
       // Money at 0xD347-D349 (BCD encoded, big-endian)
@@ -317,6 +321,7 @@ export class GameBoyEmulator {
         partyCount,
         partySpecies,
         partyHp,
+        partyLevels,
         money,
       };
     } catch (err) {
@@ -351,6 +356,7 @@ export interface GameState {
   partyCount: number;
   partySpecies: number[]; // Pokedex numbers of party Pokemon
   partyHp: { current: number; max: number }[]; // HP for each party Pokemon
+  partyLevels: number[]; // Level of each party Pokemon
   money: number;
 }
 

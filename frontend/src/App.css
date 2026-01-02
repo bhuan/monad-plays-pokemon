@@ -222,6 +222,11 @@ body {
   text-decoration: underline;
 }
 
+/* Landscape hint - hidden by default, shown only on mobile portrait */
+.landscape-hint {
+  display: none;
+}
+
 /* Main layout */
 .main {
   display: flex;

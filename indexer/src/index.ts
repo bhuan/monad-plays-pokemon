@@ -7,7 +7,7 @@ import * as https from "https";
 import * as http from "http";
 import express from "express";
 import { WebSocketServer, WebSocket } from "ws";
-import { config, contractAbi, Actions } from "./config";
+import { config, contractAbi, Actions, CONTRACT_ABI, DELEGATION_ABI } from "./config";
 import { VoteAggregator } from "./voteAggregator";
 import { GameBoyEmulator, GameState } from "./emulator";
 
@@ -195,6 +195,264 @@ async function main() {
 
   // Set up Express app to serve frontend
   const app = express();
+
+  // CORS middleware for API endpoints (needed for dev server on different port)
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // JSON middleware for API endpoints
+  app.use(express.json());
+
+  // ============================================================================
+  // EIP-7702 Relay Endpoint (experimental)
+  // ============================================================================
+  // This endpoint allows gasless voting by having the backend pay gas.
+  // Users sign a message off-chain, and the relay submits the tx to their
+  // delegated EOA. The user's EOA is msg.sender to the vote contract.
+  // ============================================================================
+
+  if (config.relay.enabled) {
+    console.log("EIP-7702 Relay enabled");
+    console.log(`  Delegation contract: ${config.relay.delegationContract}`);
+
+    if (!config.relay.privateKey) {
+      console.error("ERROR: RELAY_PRIVATE_KEY not set but relay is enabled");
+      process.exit(1);
+    }
+
+    // Create relay wallet
+    const relayWallet = new ethers.Wallet(
+      config.relay.privateKey,
+      new ethers.JsonRpcProvider(config.httpRpcUrl)
+    );
+    console.log(`  Relay wallet: ${relayWallet.address}`);
+
+    // Contract interfaces for encoding
+    const voteInterface = new ethers.Interface(CONTRACT_ABI);
+    const delegationInterface = new ethers.Interface(DELEGATION_ABI);
+
+    // SimpleDelegation contract for reading nonces
+    const delegationContract = new ethers.Contract(
+      config.relay.delegationContract,
+      DELEGATION_ABI,
+      relayWallet
+    );
+
+    // Track pending nonces per user to handle rapid submissions
+    const pendingNonces = new Map<string, number>();
+
+    // Check if an address is already delegated to SimpleDelegation
+    async function isDelegated(address: string): Promise<boolean> {
+      try {
+        const provider = relayWallet.provider;
+        if (!provider) return false;
+        const code = await provider.getCode(address);
+        // EIP-7702 delegation prefix: 0xef0100 + delegation contract address
+        const expectedPrefix = "0xef0100" + config.relay.delegationContract.slice(2).toLowerCase();
+        return code.toLowerCase() === expectedPrefix;
+      } catch {
+        return false;
+      }
+    }
+
+    app.post("/relay", async (req, res) => {
+      const startTime = Date.now();
+      try {
+        const { userAddress, action, deadline, signature, authorization } = req.body;
+
+        // Validate required fields
+        if (!userAddress || action === undefined || !deadline || !signature) {
+          return res.status(400).json({
+            error: "Missing required fields: userAddress, action, deadline, signature",
+          });
+        }
+
+        // Validate action
+        if (action < 0 || action > 7) {
+          return res.status(400).json({ error: "Invalid action (must be 0-7)" });
+        }
+
+        // Check deadline hasn't passed
+        const now = Math.floor(Date.now() / 1000);
+        if (deadline < now) {
+          return res.status(400).json({ error: "Signature has expired" });
+        }
+
+        // Check if user is already delegated
+        const alreadyDelegated = await isDelegated(userAddress);
+
+        // If not delegated, require authorization
+        if (!alreadyDelegated && !authorization) {
+          return res.status(400).json({
+            error: "Authorization required for first vote (EIP-7702 delegation)",
+            needsAuthorization: true,
+          });
+        }
+
+        // Encode the vote call data
+        const voteData = voteInterface.encodeFunctionData("vote", [action]);
+
+        // Encode the execute call to the user's delegated EOA
+        // The user's EOA has delegated to SimpleDelegation contract via EIP-7702
+        const executeData = delegationInterface.encodeFunctionData("execute", [
+          config.contractAddress, // to: MonadPlaysPokemon contract
+          0,                      // value: 0 ETH
+          voteData,               // data: vote(action)
+          deadline,               // deadline: from request
+          signature,              // signature: from request
+        ]);
+
+        let tx;
+        if (authorization && !alreadyDelegated) {
+          // First vote: Include EIP-7702 authorization in Type 0x04 transaction
+          // This delegates the EOA and executes in one atomic transaction
+          console.log(`[relay] First vote for ${userAddress.slice(0, 8)}... - including EIP-7702 authorization`);
+
+          // Build authorization list from signed authorization
+          // authorization = { chainId, nonce, r, s, yParity }
+          // ethers expects signature as a combined hex string or SignatureLike object
+          const authList = [{
+            chainId: authorization.chainId,
+            nonce: authorization.nonce,
+            address: config.relay.delegationContract,
+            signature: {
+              r: authorization.r,
+              s: authorization.s,
+              yParity: authorization.yParity,
+            },
+          }];
+
+          // Gas breakdown for first vote with EIP-7702 delegation (~98k actual):
+          // - Base transaction cost: 21,000
+          // - Calldata (~300 bytes): ~4,800
+          // - EIP-7702 authorization (PER_AUTH_BASE_COST): 12,500
+          // - EIP-7702 empty account setup: ~12,500
+          // - SSTORE nonce 0→1 (cold, zero to non-zero): ~22,100
+          // - ecrecover precompile: 6,000
+          // - External call to vote(): ~2,600 + 2,000
+          // - Overhead/cleanup: ~15,000
+          // Total: ~98,500 (125k provides safety margin)
+          tx = await relayWallet.sendTransaction({
+            type: 4, // EIP-7702 transaction type
+            to: userAddress,
+            data: executeData,
+            gasLimit: 125000,
+            authorizationList: authList,
+          });
+        } else {
+          // Gas breakdown for subsequent votes (~55k actual):
+          // - Base transaction cost: 21,000
+          // - Calldata (~300 bytes): ~4,800
+          // - Cold delegated EOA access: 2,600
+          // - SSTORE nonce n→n+1 (warm, non-zero to non-zero): ~5,000
+          // - ecrecover precompile: 6,000
+          // - External call to vote(): ~2,600 + 2,000
+          // - Overhead/cleanup: ~10,000
+          // Total: ~54,000 (60k provides safety margin)
+          tx = await relayWallet.sendTransaction({
+            to: userAddress,
+            data: executeData,
+            gasLimit: 60000,
+          });
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[relay] Vote relayed for ${userAddress.slice(0, 8)}... action=${Actions[action]} txHash=${tx.hash} (${duration}ms)`);
+
+        return res.json({
+          success: true,
+          txHash: tx.hash,
+          duration,
+          delegated: true, // After this tx, user is delegated
+        });
+      } catch (err: any) {
+        const duration = Date.now() - startTime;
+        console.error(`[relay] Error (${duration}ms):`, err.message);
+
+        // Provide helpful error messages
+        if (err.message?.includes("insufficient funds")) {
+          return res.status(503).json({ error: "Relay wallet out of funds" });
+        }
+        if (err.message?.includes("nonce")) {
+          return res.status(429).json({ error: "Transaction pending, try again" });
+        }
+        if (err.message?.includes("InvalidSignature")) {
+          return res.status(400).json({ error: "Invalid signature" });
+        }
+        if (err.message?.includes("Signature expired")) {
+          return res.status(400).json({ error: "Signature expired" });
+        }
+
+        return res.status(500).json({ error: err.message || "Relay failed" });
+      }
+    });
+
+    // Check if user's EOA is delegated
+    app.get("/relay/delegated/:address", async (req, res) => {
+      try {
+        const { address } = req.params;
+        const delegated = await isDelegated(address);
+        return res.json({ delegated });
+      } catch (err: any) {
+        console.error("[relay] Delegation check error:", err.message);
+        return res.status(500).json({ error: "Failed to check delegation" });
+      }
+    });
+
+    // Endpoint to get current nonce for a user's EOA
+    // IMPORTANT: Must call getNonce ON the user's delegated EOA, not on the delegation contract
+    // EIP-7702 storage model: delegated code runs with the EOA's storage, not the contract's
+    app.get("/relay/nonce/:address", async (req, res) => {
+      try {
+        const { address } = req.params;
+
+        // Check if user is delegated first
+        const delegated = await isDelegated(address);
+        if (!delegated) {
+          // Not delegated yet, nonce is 0
+          return res.json({ nonce: 0 });
+        }
+
+        // Call getNonce ON the user's EOA (which has delegated code)
+        // This reads from the user's storage, not the delegation contract's storage
+        const userDelegatedContract = new ethers.Contract(
+          address, // User's EOA address
+          DELEGATION_ABI,
+          relayWallet.provider
+        );
+        const nonce = await userDelegatedContract.getNonce(address);
+        return res.json({ nonce: Number(nonce) });
+      } catch (err: any) {
+        console.error("[relay] Nonce lookup error:", err.message);
+        return res.status(500).json({ error: "Failed to get nonce" });
+      }
+    });
+
+    // Health check for relay
+    app.get("/relay/health", async (req, res) => {
+      try {
+        const balance = await relayWallet.provider?.getBalance(relayWallet.address);
+        return res.json({
+          enabled: true,
+          wallet: relayWallet.address,
+          balance: ethers.formatEther(balance || 0),
+          delegationContract: config.relay.delegationContract,
+          voteContract: config.contractAddress,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ error: err.message });
+      }
+    });
+
+    console.log("Relay endpoints: POST /relay, GET /relay/nonce/:address, GET /relay/health");
+  }
 
   // Serve frontend static files if they exist
   if (fs.existsSync(FRONTEND_DIST)) {

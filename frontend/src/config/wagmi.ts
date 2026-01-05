@@ -41,6 +41,18 @@ export const wagmiConfig = createConfig({
 export const CONTRACT_ADDRESS =
   import.meta.env.VITE_CONTRACT_ADDRESS || "0xd1770d17d23f5012b5ba6bbf67a19daed3108855";
 
+// EIP-7702 Relay Configuration (experimental)
+export const RELAY_CONFIG = {
+  // Enable relay mode (backend pays gas)
+  enabled: import.meta.env.VITE_RELAY_ENABLED === "true",
+  // SimpleDelegation contract address (users delegate to this)
+  delegationContract: import.meta.env.VITE_DELEGATION_CONTRACT || "",
+  // Relay API URL (defaults to same origin)
+  apiUrl: import.meta.env.VITE_RELAY_API_URL || "",
+  // Signature validity in seconds
+  signatureValiditySeconds: parseInt(import.meta.env.VITE_RELAY_SIGNATURE_VALIDITY || "300", 10),
+};
+
 // Contract ABI for voting
 export const CONTRACT_ABI = [
   {

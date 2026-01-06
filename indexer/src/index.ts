@@ -862,7 +862,11 @@ async function main() {
         config.windowSize - (latestBlock % config.windowSize);
 
       if (blocksUntilWindowEnd === config.windowSize) {
-        console.log(`\n--- New Window ${windowId} started at block ${latestBlock} ---`);
+        // Reduce log spam for small window sizes - only log every 10 windows
+        const logInterval = config.windowSize < 5 ? 10 : 1;
+        if (windowId % logInterval === 0) {
+          console.log(`\n--- New Window ${windowId} started at block ${latestBlock} ---`);
+        }
       }
     } catch (err) {
       console.error("[poll] Error polling for events:", err);

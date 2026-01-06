@@ -253,7 +253,9 @@ async function main() {
       try {
         const provider = relayWallet.provider;
         if (!provider) return false;
-        const code = await provider.getCode(address);
+        // Normalize address: lowercase first to avoid checksum errors, then checksum
+        const normalizedAddress = ethers.getAddress(address.toLowerCase());
+        const code = await provider.getCode(normalizedAddress);
         // EIP-7702 delegation prefix: 0xef0100 + delegation contract address
         const expectedPrefix = "0xef0100" + config.relay.delegationContract.slice(2).toLowerCase();
         return code.toLowerCase() === expectedPrefix;
@@ -411,7 +413,8 @@ async function main() {
     // EIP-7702 storage model: delegated code runs with the EOA's storage, not the contract's
     app.get("/relay/nonce/:address", async (req, res) => {
       try {
-        const { address } = req.params;
+        // Normalize address: lowercase first to avoid checksum errors, then checksum
+        const address = ethers.getAddress(req.params.address.toLowerCase());
 
         // Check if user is delegated first
         const delegated = await isDelegated(address);

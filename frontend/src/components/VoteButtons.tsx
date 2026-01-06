@@ -45,7 +45,10 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   // Cooldown state for visual feedback (buttons greyed out)
   const [isCooldown, setIsCooldown] = useState(false);
   const cooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const VOTE_COOLDOWN_MS = 500; // Min 500ms between votes
+  const VOTE_COOLDOWN_MS = 1500; // Min 1.5s between votes (Privy rate limits)
+
+  // Synchronous ref-based cooldown check (React state updates are async)
+  const lastVoteTimeRef = useRef<number>(0);
 
   // Privy hooks for embedded wallet
   const { wallets } = useWallets();
@@ -141,6 +144,14 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   const vote = async (action: ActionType) => {
     if (disabled || isVoting || isCooldown) return;
 
+    // Synchronous ref-based cooldown check (React state may not be updated yet on rapid clicks)
+    const now = Date.now();
+    if (now - lastVoteTimeRef.current < VOTE_COOLDOWN_MS) {
+      console.log(`[cooldown] Vote rejected - ${VOTE_COOLDOWN_MS - (now - lastVoteTimeRef.current)}ms remaining`);
+      return;
+    }
+    lastVoteTimeRef.current = now;
+
     // Start cooldown immediately (visual feedback)
     setIsCooldown(true);
     if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
@@ -208,9 +219,14 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
             setError("Transaction cancelled");
           } else if (errMsg.includes("insufficient funds")) {
             setError("Insufficient funds - need MON for gas");
-          } else if (errMsg.includes("higher priority") || errMsg.includes("nonce")) {
-            // Nonce collision - previous tx still pending, silently ignore
-            console.log("[TIMING] Nonce collision detected, previous tx still pending");
+          } else if (
+            errMsg.includes("higher priority") ||
+            errMsg.includes("nonce") ||
+            errMsg.includes("Too many requests") ||
+            errMsg.includes("429")
+          ) {
+            // Nonce collision or rate limit - silently ignore, don't show UI error
+            console.log("[TIMING] Nonce collision or rate limit detected, try again later");
           } else {
             setError(errMsg.slice(0, 100));
           }

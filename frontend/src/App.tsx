@@ -1,10 +1,9 @@
 import { useEffect, useCallback, useState, useMemo } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useSetActiveWallet } from "@privy-io/wagmi";
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { monadTestnet } from "./config/wagmi";
+import { monadTestnet, RELAY_CONFIG } from "./config/wagmi";
 import { useSocket } from "./hooks/useSocket";
 import { VoteButtons } from "./components/VoteButtons";
 import { GameScreen } from "./components/GameScreen";
@@ -13,13 +12,12 @@ import { GameStatusPanel } from "./components/GameStatusPanel";
 import { PartyPanel } from "./components/PartyPanel";
 import "./App.css";
 
-// Auth modes: "privy" for email/social with AA, "direct" for EOA wallet
-type AuthMode = "privy" | "direct" | null;
+// Auth modes: "privy" for email/social with AA, "direct" for EOA wallet, "relay" for EIP-7702 backend relay
+type AuthMode = "privy" | "direct" | "relay" | null;
 
 function App() {
   const { login, logout, ready, authenticated } = usePrivy();
   const { wallets, ready: walletsReady } = useWallets();
-  const { client: smartWalletClient } = useSmartWallets();
   const { setActiveWallet } = useSetActiveWallet();
   const { address, isConnected: walletConnected, connector } = useAccount();
 
@@ -37,8 +35,13 @@ function App() {
   // Track auth mode
   const [authMode, setAuthMode] = useState<AuthMode>(null);
 
-  // Get the smart wallet address (the AA contract address that votes go through)
-  const smartWalletAddress = smartWalletClient?.account?.address;
+  // User preference for relay vs privy mode (only matters when logged in via Privy)
+  // Default to relay (EIP-7702) when available, but allow toggle to privy (EIP-4337) for debugging
+  const [preferRelay, setPreferRelay] = useState(true);
+
+  // Get embedded wallet address (for native Privy transactions)
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+  const embeddedWalletAddress = embeddedWallet?.address;
   const {
     isConnected: indexerConnected,
     resultHistory,
@@ -49,18 +52,23 @@ function App() {
     setFrameCallback,
   } = useSocket();
 
-  // Detect auth mode based on connection state
+  // Detect auth mode based on connection state and user preference
   useEffect(() => {
     if (authenticated && walletConnected) {
       // User logged in via Privy (has embedded wallet or linked wallet)
-      setAuthMode("privy");
+      // Use relay mode (EIP-7702) if enabled and preferred, otherwise use Privy's native gas sponsorship (EIP-4337)
+      if (RELAY_CONFIG.enabled && preferRelay) {
+        setAuthMode("relay");
+      } else {
+        setAuthMode("privy");
+      }
     } else if (!authenticated && walletConnected && connector) {
       // User connected directly via wagmi (EOA)
       setAuthMode("direct");
     } else if (!authenticated && !walletConnected) {
       setAuthMode(null);
     }
-  }, [authenticated, walletConnected, connector]);
+  }, [authenticated, walletConnected, connector, preferRelay]);
 
   // Prompt to switch chain if connected to wrong network (for direct wallet connections)
   useEffect(() => {
@@ -128,9 +136,9 @@ function App() {
     }
   }, [connect, injectedConnector, switchChain]);
 
-  // Handle disconnect for both modes
+  // Handle disconnect for all modes
   const handleDisconnect = useCallback(() => {
-    if (authMode === "privy") {
+    if (authMode === "privy" || authMode === "relay") {
       logout();
     } else if (authMode === "direct") {
       disconnectWagmi();
@@ -143,10 +151,10 @@ function App() {
   const canVote = isLoggedIn;
   const isLoading = !ready || isConnecting;
 
-  // Get display address - use AA wallet for Privy users (that's their on-chain identity)
+  // Get display address - use embedded wallet for Privy/relay users
   // For direct EOA connections, use the connected address
-  const displayAddress = authMode === "privy"
-    ? smartWalletAddress
+  const displayAddress = (authMode === "privy" || authMode === "relay")
+    ? embeddedWalletAddress
     : address;
 
   // Copy address state
@@ -173,7 +181,7 @@ function App() {
           {isLoggedIn ? (
             <div className="wallet-info">
               <span className="auth-badge" data-mode={authMode}>
-                {authMode === "privy" ? "Gasless" : "EOA"}
+                {authMode === "relay" ? "EIP-7702" : authMode === "privy" ? "EIP-4337" : "EOA"}
               </span>
               <span className="address" title={displayAddress || undefined}>
                 {displayAddress
@@ -185,11 +193,21 @@ function App() {
                   {copied ? "Copied!" : "Copy"}
                 </button>
               )}
-              {authMode === "privy" && !walletConnected && (
+              {/* Toggle between EIP-7702 (relay) and EIP-4337 (privy) modes */}
+              {authenticated && RELAY_CONFIG.enabled && (
+                <button
+                  onClick={() => setPreferRelay(!preferRelay)}
+                  className="mode-toggle-btn"
+                  title={preferRelay ? "Switch to EIP-4337 (Privy bundler)" : "Switch to EIP-7702 (Relay)"}
+                >
+                  {preferRelay ? "Use 4337" : "Use 7702"}
+                </button>
+              )}
+              {(authMode === "privy" || authMode === "relay") && !walletConnected && (
                 <span className="connecting"> (connecting wallet...)</span>
               )}
               <button onClick={handleDisconnect} className="disconnect-btn">
-                {authMode === "privy" ? "Logout" : "Disconnect"}
+                {authMode === "privy" || authMode === "relay" ? "Logout" : "Disconnect"}
               </button>
             </div>
           ) : (
@@ -256,7 +274,7 @@ function App() {
 
               <VoteChat
                 votes={recentVotes}
-                userAddress={authMode === "privy" ? smartWalletAddress : address}
+                userAddress={(authMode === "privy" || authMode === "relay") ? embeddedWalletAddress : address}
               />
             </div>
 

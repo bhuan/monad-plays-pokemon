@@ -311,7 +311,7 @@ function App() {
       <footer className="footer">
         <p>
           All players see the same game state (Pokemon Red) and vote on Monad Testnet for the next action.
-          {" "}<strong>Every 5 blocks</strong> (approx. 2 seconds), the most popular action is executed on the shared game. Ties are broken randomly.
+          {" "}<strong>Every block</strong> (approx. 400ms), the most popular action is executed on the shared game. Ties are broken randomly.
         </p>
         <p className="inspiration">
           Inspired by{" "}

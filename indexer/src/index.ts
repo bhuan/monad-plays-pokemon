@@ -469,6 +469,7 @@ async function main() {
     // SPA fallback - serve index.html for all non-API routes
     app.use((req, res, next) => {
       if (req.path.startsWith("/socket.io")) return next();
+      if (req.path.startsWith("/relay")) return next();
       if (req.method !== "GET") return next();
       res.sendFile(path.join(FRONTEND_DIST, "index.html"));
     });

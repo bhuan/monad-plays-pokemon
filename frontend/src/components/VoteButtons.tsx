@@ -13,6 +13,9 @@ import {
 } from "../config/wagmi";
 import "./VoteButtons.css";
 
+// Cooldown before allowing another vote (prevents nonce collisions)
+const VOTE_COOLDOWN_MS = parseInt(import.meta.env.VITE_VOTE_COOLDOWN_MS || "500", 10);
+
 type AuthMode = "privy" | "direct" | "relay" | null;
 
 // Session cache for relay mode optimization
@@ -46,7 +49,6 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   // Cooldown state for visual feedback (buttons greyed out)
   const [isCooldown, setIsCooldown] = useState(false);
   const cooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const VOTE_COOLDOWN_MS = 1500; // Min 1.5s between votes (prevents nonce collisions across all auth modes)
 
   // Synchronous ref-based cooldown check (React state updates are async)
   const lastVoteTimeRef = useRef<number>(0);
@@ -122,7 +124,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     if (txHash && pendingAction !== null) {
       console.log("Vote tx broadcast (wagmi):", txHash);
       console.log("Buttons re-enabled. Vote will appear in chat via proposed state (~400ms-1s)");
-      markVoteSent(pendingAction, 1500); // Show "sent" feedback for 1.5s
+      markVoteSent(pendingAction, VOTE_COOLDOWN_MS); // Show "sent" feedback during cooldown
       setPendingAction(null);
       setIsVoting(false);
       reset();
@@ -230,15 +232,14 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           });
 
         // Optimistic UI: Enable buttons after short cooldown to prevent nonce collisions
-        // 1.5 seconds to avoid Privy re-signing dialogs on rapid clicks
-        console.log("Vote submitted to bundler, buttons re-enabled in 1.5s (optimistic)");
+        console.log(`Vote submitted to bundler, buttons re-enabled in ${VOTE_COOLDOWN_MS}ms (optimistic)`);
         console.log("Vote will appear in chat via proposed state (~400ms-1s)");
-        // Show "sent" visual feedback immediately, clear after 2s total
-        markVoteSent(action, 2000);
+        // Show "sent" visual feedback during cooldown
+        markVoteSent(action, VOTE_COOLDOWN_MS);
         setTimeout(() => {
           setPendingAction(null);
           setIsVoting(false);
-        }, 1500);
+        }, VOTE_COOLDOWN_MS);
       } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
         // Privy user but smart wallet not ready yet
         setError("Smart wallet not ready. Please wait or refresh.");

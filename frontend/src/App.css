@@ -180,6 +180,24 @@ body {
   color: #fff;
 }
 
+.mode-toggle-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #555;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: #888;
+  transition: all 0.2s;
+}
+
+.mode-toggle-btn:hover {
+  background: #333;
+  color: #fff;
+  border-color: #666;
+}
+
 .switch-network-btn {
   padding: 0.5rem 1rem;
   border: none;

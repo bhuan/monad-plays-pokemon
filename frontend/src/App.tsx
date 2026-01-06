@@ -35,6 +35,10 @@ function App() {
   // Track auth mode
   const [authMode, setAuthMode] = useState<AuthMode>(null);
 
+  // User preference for relay vs privy mode (only matters when logged in via Privy)
+  // Default to relay (EIP-7702) when available, but allow toggle to privy (EIP-4337) for debugging
+  const [preferRelay, setPreferRelay] = useState(true);
+
   // Get embedded wallet address (for native Privy transactions)
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
   const embeddedWalletAddress = embeddedWallet?.address;
@@ -48,12 +52,12 @@ function App() {
     setFrameCallback,
   } = useSocket();
 
-  // Detect auth mode based on connection state
+  // Detect auth mode based on connection state and user preference
   useEffect(() => {
     if (authenticated && walletConnected) {
       // User logged in via Privy (has embedded wallet or linked wallet)
-      // Use relay mode if enabled, otherwise use Privy's native gas sponsorship
-      if (RELAY_CONFIG.enabled) {
+      // Use relay mode (EIP-7702) if enabled and preferred, otherwise use Privy's native gas sponsorship (EIP-4337)
+      if (RELAY_CONFIG.enabled && preferRelay) {
         setAuthMode("relay");
       } else {
         setAuthMode("privy");
@@ -64,7 +68,7 @@ function App() {
     } else if (!authenticated && !walletConnected) {
       setAuthMode(null);
     }
-  }, [authenticated, walletConnected, connector]);
+  }, [authenticated, walletConnected, connector, preferRelay]);
 
   // Prompt to switch chain if connected to wrong network (for direct wallet connections)
   useEffect(() => {
@@ -177,7 +181,7 @@ function App() {
           {isLoggedIn ? (
             <div className="wallet-info">
               <span className="auth-badge" data-mode={authMode}>
-                {authMode === "relay" ? "Relay" : authMode === "privy" ? "Gasless" : "EOA"}
+                {authMode === "relay" ? "EIP-7702" : authMode === "privy" ? "EIP-4337" : "EOA"}
               </span>
               <span className="address" title={displayAddress || undefined}>
                 {displayAddress
@@ -187,6 +191,16 @@ function App() {
               {displayAddress && (
                 <button onClick={copyAddress} className="copy-btn" title="Copy full address">
                   {copied ? "Copied!" : "Copy"}
+                </button>
+              )}
+              {/* Toggle between EIP-7702 (relay) and EIP-4337 (privy) modes */}
+              {authenticated && RELAY_CONFIG.enabled && (
+                <button
+                  onClick={() => setPreferRelay(!preferRelay)}
+                  className="mode-toggle-btn"
+                  title={preferRelay ? "Switch to EIP-4337 (Privy bundler)" : "Switch to EIP-7702 (Relay)"}
+                >
+                  {preferRelay ? "Use 4337" : "Use 7702"}
                 </button>
               )}
               {(authMode === "privy" || authMode === "relay") && !walletConnected && (

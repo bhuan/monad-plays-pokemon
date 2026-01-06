@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useWallets, useSendTransaction, useSignMessage } from "@privy-io/react-auth";
+import { useWallets, useSignMessage } from "@privy-io/react-auth";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useWriteContract, useSignMessage as useWagmiSignMessage } from "wagmi";
 import { encodeFunctionData, keccak256, encodePacked, toRlp, toHex, type Hex } from "viem";
 import {
@@ -50,11 +51,9 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   // Synchronous ref-based cooldown check (React state updates are async)
   const lastVoteTimeRef = useRef<number>(0);
 
-  // Privy hooks for embedded wallet
+  // Privy hooks for embedded wallet and smart wallet (EIP-4337)
   const { wallets } = useWallets();
-
-  // Privy native sendTransaction (for testing without EIP-4337)
-  const { sendTransaction: privySendTransaction } = useSendTransaction();
+  const { client: smartWalletClient } = useSmartWallets();
 
   // Privy signMessage for relay mode
   const { signMessage: privySignMessage } = useSignMessage();
@@ -107,6 +106,15 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
       if (cooldownTimeoutRef.current) clearTimeout(cooldownTimeoutRef.current);
     };
   }, []);
+
+  // Clear relay cache when switching auth modes (prevents stale delegation status)
+  useEffect(() => {
+    if (authMode !== "relay") {
+      // Reset relay cache when not in relay mode
+      relayCache.current = { address: null, isDelegated: null, nonce: null };
+      console.log("[relay] Cache cleared (mode switch)");
+    }
+  }, [authMode]);
 
   // Handle wagmi transaction broadcast (for external wallets)
   // Optimistic UI: Enable buttons as soon as tx is broadcast, don't wait for confirmation
@@ -162,77 +170,77 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
     setIsVoting(true);
 
     try {
-      if (authMode === "privy" && hasEmbeddedWallet) {
-        // Use Privy native sendTransaction with embedded wallet
-        // TESTING: First without sponsorship to prove it works
+      if (authMode === "privy" && smartWalletClient) {
+        // Use smart wallet with paymaster (gas sponsored) - EIP-4337
         const data = encodeFunctionData({
           abi: CONTRACT_ABI,
           functionName: "vote",
           args: [action],
         });
 
-        const startTime = performance.now();
-        console.log(`[TIMING] Vote started (native Privy) at ${new Date().toISOString()}`);
+        // Check if wallet is already deployed (first tx needs higher gas for account creation)
+        const isDeployed = await smartWalletClient.account?.isDeployed();
 
-        // Find the embedded wallet address
-        const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
-        if (!embeddedWallet) {
-          setError("No embedded wallet found");
-          setPendingAction(null);
-          setIsVoting(false);
-          return;
-        }
+        // Gas overrides - only apply for existing wallets
+        // New wallets need higher gas for account creation, let bundler estimate
+        const gasOverrides = isDeployed
+          ? {
+              callGasLimit: 15000n,           // Actual: ~14,500
+              verificationGasLimit: 130000n,  // Actual: ~102,000 + 27% buffer
+              preVerificationGas: 165000n,    // Required: ~164k
+              maxFeePerGas: 155000000000n,    // 155 gwei (bundler min: 152.5)
+              maxPriorityFeePerGas: 2500000000n, // 2.5 gwei tip
+            }
+          : {};
 
-        try {
-          // Use Privy's native sendTransaction
-          // Set sponsor: false first to test without gas sponsorship
-          // Change to sponsor: true to test gas sponsorship
-          const USE_SPONSORSHIP = true; // Testing Privy native gas sponsorship
-
-          const txReceipt = await privySendTransaction(
-            {
+        // Fire-and-forget: Start transaction but don't await confirmation
+        // This enables optimistic UI - buttons re-enable immediately
+        smartWalletClient.sendTransaction(
+          {
+            calls: [{
               to: CONTRACT_ADDRESS as `0x${string}`,
               data,
-              chainId: 10143, // Monad Testnet
+            }],
+            ...gasOverrides,
+          },
+          {
+            uiOptions: {
+              showWalletUIs: false, // Disable confirmation popup
             },
-            {
-              address: embeddedWallet.address,
-              // uiOptions: { showWalletUIs: false }, // Requires dashboard setting
-              ...(USE_SPONSORSHIP ? { sponsor: true } : {}),
-            }
-          );
-
-          const duration = performance.now() - startTime;
-          console.log(`[TIMING] ✅ Transaction sent after ${duration.toFixed(0)}ms - txHash: ${txReceipt.hash}`);
-          markVoteSent(action, 1500);
-          setPendingAction(null);
-          setIsVoting(false);
-        } catch (err: any) {
-          const duration = performance.now() - startTime;
-          console.error(`[TIMING] ❌ Vote failed after ${duration.toFixed(0)}ms:`, err);
-          const errMsg = err?.message || "Vote failed";
-          if (
-            errMsg.includes("rejected") ||
-            errMsg.includes("denied") ||
-            errMsg.includes("cancelled")
-          ) {
-            setError("Transaction cancelled");
-          } else if (errMsg.includes("insufficient funds")) {
-            setError("Insufficient funds - need MON for gas");
-          } else if (
-            errMsg.includes("higher priority") ||
-            errMsg.includes("nonce") ||
-            errMsg.includes("Too many requests") ||
-            errMsg.includes("429")
-          ) {
-            // Nonce collision or rate limit - silently ignore, don't show UI error
-            console.log("[TIMING] Nonce collision or rate limit detected, try again later");
-          } else {
-            setError(errMsg.slice(0, 100));
           }
+        )
+          .then((txHash) => {
+            console.log("Vote tx confirmed (Smart Wallet, sponsored):", txHash);
+          })
+          .catch((err: any) => {
+            console.error("Vote failed (Smart Wallet):", err);
+            const errMsg = err?.message || "Vote failed";
+            if (
+              errMsg.includes("rejected") ||
+              errMsg.includes("denied") ||
+              errMsg.includes("cancelled")
+            ) {
+              setError("Transaction cancelled");
+            } else {
+              setError(errMsg.slice(0, 100));
+            }
+          });
+
+        // Optimistic UI: Enable buttons after short cooldown to prevent nonce collisions
+        // 1.5 seconds to avoid Privy re-signing dialogs on rapid clicks
+        console.log("Vote submitted to bundler, buttons re-enabled in 1.5s (optimistic)");
+        console.log("Vote will appear in chat via proposed state (~400ms-1s)");
+        // Show "sent" visual feedback immediately, clear after 2s total
+        markVoteSent(action, 2000);
+        setTimeout(() => {
           setPendingAction(null);
           setIsVoting(false);
-        }
+        }, 1500);
+      } else if (authMode === "privy" && hasEmbeddedWallet && !smartWalletClient) {
+        // Privy user but smart wallet not ready yet
+        setError("Smart wallet not ready. Please wait or refresh.");
+        setPendingAction(null);
+        setIsVoting(false);
       } else if (authMode === "direct") {
         // Direct wallet connection (EOA) - user pays gas
         // Use wagmi's writeContract - shows wallet's native approval popup
@@ -282,14 +290,14 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
           }
 
           // 2. Get nonce - use optimistic cache if available, otherwise fetch
-          let nonce = relayCache.current.nonce;
-          if (nonce === null) {
+          let nonce: number = relayCache.current.nonce ?? -1;
+          if (nonce < 0) {
             const nonceResponse = await fetch(`${relayApiUrl}/relay/nonce/${userAddress}`);
             if (!nonceResponse.ok) {
               throw new Error("Failed to get nonce");
             }
             const result = await nonceResponse.json();
-            nonce = result.nonce;
+            nonce = result.nonce ?? 0;
             relayCache.current.nonce = nonce;
             console.log(`[relay] Nonce: ${nonce} (fetched)`);
           } else {

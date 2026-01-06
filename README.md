@@ -21,21 +21,21 @@ A decentralized "Twitch Plays Pokémon" proof-of-concept running on the Monad bl
 
 ## The game loop
 
-Let's walk through the game loop using the [Privy](https://www.privy.io/) smart wallet integration.
+Let's walk through the game loop using the EIP-7702 relay for gasless voting.
 
 ![The game loop](./assets/game-loop.png)
 
-1. The user clicks the UP button on the D-pad. The frontend encodes `vote(Action.UP)` and prepares a `UserOperation` with the user's smart wallet as the sender.
-2. The signed `UserOperation` is sent to the Privy endpoint. This contains the encoded vote call and the user's embedded wallet signature.
-3. The bundler validates the `UserOperation` and requests gas sponsorship from the Paymaster (the entity paying for gas fees on behalf of the user). The Paymaster approves, and the bundler wraps the `UserOperation` into a transaction.
-4. The bundler broadcasts the transaction to Monad validators via RPC. The transaction calls `EntryPoint.handleOps()` which will execute the user's vote through their smart wallet.
-5. The next leader includes the transaction in a block (~400 ms block time). The smart wallet executes `vote(Action.UP)` on the MonadPlaysPokemon contract, which emits a `VoteCast(player, UP)` event.
+1. The user clicks the UP button on the D-pad. The frontend prepares a vote signature and (for first-time users) an EIP-7702 authorization to delegate their EOA to a SimpleDelegation contract.
+2. The signed vote message is sent to the relay endpoint. For first-time users, the message includes an EIP-7702 authorization that delegates their EOA.
+3. The relay verifies the signature and prepares to submit on behalf of the user.
+4. The relay submits the transaction to Monad, paying gas on behalf of the user. For first-time users, the transaction includes an EIP-7702 authorization list.
+5. The next leader includes the transaction in a block (~400 ms block time). The delegated EOA executes `vote(Action.UP)` on the MonadPlaysPokemon contract, which emits a `VoteCast(player, UP)` event.
 6. The indexer receives the `VoteCast` event via its WebSocket subscription (`monadLogs`). The event includes the player's address, the action (UP), block number, and transaction hash.
-7. The indexer records the vote in the current time window. When the window closes (every 5 blocks), it tallies votes, determines UP as the winner, and presses UP on the emulator.
+7. The indexer records the vote in the current time window. When the window closes (configurable, default: 1 block), it tallies votes, determines UP as the winner, and presses UP on the emulator.
 8. The indexer broadcasts the finalized vote to all clients via [Socket.io](http://socket.io/) (appears in vote feed). It also streams the updated game visuals as a JPEG over WebSocket.
 9. The user sees the character walk UP.
 
-If a user connects with an EOA account, the dotted line is taken and all the complexity of account abstraction goes away (but the user has to pay for their own gas and click “Approve”!).
+If a user connects with an external wallet (EOA), they can choose to pay their own gas and submit transactions directly to the blockchain.
 
 ## Quick Start
 
@@ -86,13 +86,20 @@ npm run dev
 ### Indexer (.env)
 - `RPC_URL`: `wss://testnet-rpc.monad.xyz` (WebSocket)
 - `CONTRACT_ADDRESS`: Deployed MonadPlaysPokemon contract address
-- `WINDOW_SIZE`: Blocks per voting window (default: 5)
+- `WINDOW_SIZE`: Blocks per voting window (default: 1)
 - `PORT`: Socket.io server port (default: 3001)
+- `RELAY_ENABLED`: Enable EIP-7702 gasless relay (default: false)
+- `RELAY_PRIVATE_KEY`: Private key for relay wallet (pays gas)
+- `DELEGATION_CONTRACT`: Deployed SimpleDelegation contract address
 
 ### Frontend (.env)
 - `VITE_CONTRACT_ADDRESS`: Deployed contract address
 - `VITE_RPC_URL`: `https://testnet-rpc.monad.xyz`
 - `VITE_INDEXER_URL`: Indexer WebSocket URL (default: `http://localhost:3001`)
+- `VITE_PRIVY_APP_ID`: Privy App ID for embedded wallets
+- `VITE_RELAY_ENABLED`: Enable EIP-7702 gasless relay (default: false)
+- `VITE_DELEGATION_CONTRACT`: Deployed SimpleDelegation contract address
+- `VITE_RELAY_API_URL`: Relay API URL (default: `http://localhost:3001`)
 
 ## Network Details
 

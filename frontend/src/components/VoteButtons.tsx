@@ -221,6 +221,9 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
               errMsg.includes("cancelled")
             ) {
               setError("Transaction cancelled");
+            } else if (errMsg.includes("Invalid Smart Account nonce")) {
+              // Nonce collision from rapid clicks - log but don't show UI error
+              console.log("[EIP-4337] Smart account nonce collision, try again");
             } else {
               setError(errMsg.slice(0, 100));
             }

@@ -46,7 +46,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
   // Cooldown state for visual feedback (buttons greyed out)
   const [isCooldown, setIsCooldown] = useState(false);
   const cooldownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const VOTE_COOLDOWN_MS = 1500; // Min 1.5s between votes (Privy rate limits)
+  const VOTE_COOLDOWN_MS = 1500; // Min 1.5s between votes (prevents nonce collisions across all auth modes)
 
   // Synchronous ref-based cooldown check (React state updates are async)
   const lastVoteTimeRef = useRef<number>(0);
@@ -356,7 +356,7 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
             // Get EOA's transaction nonce (different from SimpleDelegation nonce)
             // For first vote, EOA nonce should be 0 for new accounts
             const eoaNonceResponse = await fetch(
-              `https://testnet-rpc.monad.xyz`,
+              monadTestnet.rpcUrls.default.http[0],
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -409,7 +409,16 @@ export function VoteButtons({ disabled, authMode }: VoteButtonsProps) {
             const r = ("0x" + authSig.slice(2, 66)) as `0x${string}`;
             const s = ("0x" + authSig.slice(66, 130)) as `0x${string}`;
             const v = parseInt(authSig.slice(130, 132), 16);
-            const yParity = v === 27 ? 0 : v === 28 ? 1 : v; // Handle both legacy v and yParity
+            // Validate v and convert to yParity (0 or 1)
+            // Handles both legacy v (27/28) and direct yParity (0/1)
+            let yParity: 0 | 1;
+            if (v === 27 || v === 0) {
+              yParity = 0;
+            } else if (v === 28 || v === 1) {
+              yParity = 1;
+            } else {
+              throw new Error(`Invalid signature v value: ${v}`);
+            }
 
             authorization = {
               chainId: Number(chainId),

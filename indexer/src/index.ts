@@ -245,20 +245,26 @@ async function main() {
       relayWallet
     );
 
-    // Track pending nonces per user to handle rapid submissions
-    const pendingNonces = new Map<string, number>();
+    // EIP-7702 delegation prefix: 0xef0100 indicates code is delegated to another address
+    // See EIP-7702 spec: https://eips.ethereum.org/EIPS/eip-7702
+    const EIP7702_DELEGATION_PREFIX = "0xef0100";
+
+    // Normalize address to checksummed format
+    // We lowercase first because ethers.js v6 throws on addresses with incorrect checksum casing
+    function normalizeAddress(address: string): string {
+      return ethers.getAddress(address.toLowerCase());
+    }
 
     // Check if an address is already delegated to SimpleDelegation
     async function isDelegated(address: string): Promise<boolean> {
       try {
         const provider = relayWallet.provider;
         if (!provider) return false;
-        // Normalize address: lowercase first to avoid checksum errors, then checksum
-        const normalizedAddress = ethers.getAddress(address.toLowerCase());
+        const normalizedAddress = normalizeAddress(address);
         const code = await provider.getCode(normalizedAddress);
-        // EIP-7702 delegation prefix: 0xef0100 + delegation contract address
-        const expectedPrefix = "0xef0100" + config.relay.delegationContract.slice(2).toLowerCase();
-        return code.toLowerCase() === expectedPrefix;
+        // Check if code matches EIP-7702 delegation to our contract
+        const expectedCode = EIP7702_DELEGATION_PREFIX + config.relay.delegationContract.slice(2).toLowerCase();
+        return code.toLowerCase() === expectedCode;
       } catch {
         return false;
       }
@@ -315,7 +321,7 @@ async function main() {
         if (authorization && !alreadyDelegated) {
           // First vote: Include EIP-7702 authorization in Type 0x04 transaction
           // This delegates the EOA and executes in one atomic transaction
-          console.log(`[relay] First vote for ${userAddress.slice(0, 8)}... - including EIP-7702 authorization`);
+          console.log(`[relay] first vote for ${userAddress.slice(0, 8)}... - including EIP-7702 authorization`);
 
           // Build authorization list from signed authorization
           // authorization = { chainId, nonce, r, s, yParity }
@@ -413,8 +419,7 @@ async function main() {
     // EIP-7702 storage model: delegated code runs with the EOA's storage, not the contract's
     app.get("/relay/nonce/:address", async (req, res) => {
       try {
-        // Normalize address: lowercase first to avoid checksum errors, then checksum
-        const address = ethers.getAddress(req.params.address.toLowerCase());
+        const address = normalizeAddress(req.params.address);
 
         // Check if user is delegated first
         const delegated = await isDelegated(address);

@@ -25,9 +25,6 @@ contract SimpleDelegation {
     /// @notice Error when nonce doesn't match
     error InvalidNonce();
 
-    /// @notice Error when call fails
-    error CallFailed();
-
     /// @notice Execute a call on behalf of the delegated EOA
     /// @dev The caller (relayer) pays gas. The EOA owner must sign the call parameters.
     ///      When called on a delegated EOA, address(this) is the EOA's address.
@@ -81,7 +78,12 @@ contract SimpleDelegation {
         // Execute the call
         // msg.sender to the target contract will be address(this) == the EOA
         (bool success, bytes memory result) = to.call{value: value}(data);
-        if (!success) revert CallFailed();
+        if (!success) {
+            // Bubble up the revert reason from the target contract
+            assembly {
+                revert(add(result, 0x20), mload(result))
+            }
+        }
 
         emit Executed(owner, to, value, data);
 
